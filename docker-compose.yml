@@ -1,0 +1,47 @@
+# Infrastruktur pengembangan Born Citius.
+# Port sengaja digeser dari default: 5432/6379 sudah dipakai container lain
+# di server ini (n8n-postgres, onyx-*).
+#
+# name di bawah WAJIB ada: tanpa project name eksplisit, `docker compose up`
+# di direktori ini akan berbagi project name default dengan docker-compose.prod.yml
+# (keduanya "born-citius"), sehingga container postgres/redis prod bisa
+# ter-recreate tak sengaja saat menjalankan stack dev.
+name: born-citius-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: born-citius-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: borncitius
+      POSTGRES_PASSWORD: borncitius_dev
+      POSTGRES_DB: borncitius
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U borncitius -d borncitius"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: born-citius-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
+  redis-data:

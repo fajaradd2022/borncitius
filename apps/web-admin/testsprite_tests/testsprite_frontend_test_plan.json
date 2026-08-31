@@ -1,0 +1,2171 @@
+[
+  {
+    "id": "TC001",
+    "title": "Admin signs in and reaches the dashboard",
+    "description": "An admin user can sign in with valid credentials and land on the dashboard summary.",
+    "category": "Login",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the dashboard summary is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC002",
+    "title": "Supervisor signs in and reaches the dashboard",
+    "description": "A supervisor user can sign in with valid credentials and land on the dashboard summary.",
+    "category": "Login",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the dashboard summary is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC003",
+    "title": "Open the dashboard summary after signing in",
+    "description": "Verifies that a signed-in user lands on the dashboard and can see task summary information.",
+    "category": "Bulk Import Tasks via Excel",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the dashboard summary is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify folder-level task counts are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC004",
+    "title": "Review and return a task for revision",
+    "description": "Verifies a supervisor can reject a field with a required comment and send the task back so it is marked for revision.",
+    "category": "Task Review & Approval",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the login credentials for the supervisor role"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to a task review page from the dashboard or folder task list"
+      },
+      {
+        "type": "action",
+        "description": "Reject one field and provide a comment"
+      },
+      {
+        "type": "action",
+        "description": "Send the task back to the technician"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task is marked for revision"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the rejection comment is preserved in the task review state"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC005",
+    "title": "View folder list and open a folder",
+    "description": "This verifies an authenticated user can review folders from the summary and open a folder to reach its task list.",
+    "category": "Folder List",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /folders"
+      },
+      {
+        "type": "action",
+        "description": "Click a folder card"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify folder task counts are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the folder task list is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC006",
+    "title": "User can log out from the dashboard",
+    "description": "A signed-in user can end the session from the user menu and return to the login screen.",
+    "category": "Logout",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the user menu"
+      },
+      {
+        "type": "action",
+        "description": "Choose logout"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the login screen is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC007",
+    "title": "Create a new layout from a source template and save it",
+    "description": "Verifies that an authenticated user can select a source template, configure a new layout, add content, and save it successfully.",
+    "category": "Layout Builder — Blocks, Drag-and-Drop, Save",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /layouts/new"
+      },
+      {
+        "type": "action",
+        "description": "Select an active source template"
+      },
+      {
+        "type": "action",
+        "description": "Fill in a unique layout name"
+      },
+      {
+        "type": "action",
+        "description": "Toggle the default setting on"
+      },
+      {
+        "type": "action",
+        "description": "Add a text block to the canvas"
+      },
+      {
+        "type": "action",
+        "description": "Save the layout"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a success confirmation is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the saved layout is available in the layouts list"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC008",
+    "title": "Approve every eligible field on a task",
+    "description": "Verifies a supervisor can approve all non-section fields and complete the task as approved.",
+    "category": "Task Review & Approval",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the login credentials for the supervisor role"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to an unapproved task review page from the dashboard or folder task list"
+      },
+      {
+        "type": "action",
+        "description": "Approve every non-section field"
+      },
+      {
+        "type": "action",
+        "description": "Complete the approve all action"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task is marked approved"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify all eligible fields show an approved state"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC009",
+    "title": "Review and approve a task with export",
+    "description": "This verifies a supervisor can review a task, approve it, and export the approved document.",
+    "category": "Task Review and Approval",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /folders"
+      },
+      {
+        "type": "action",
+        "description": "Click a folder card"
+      },
+      {
+        "type": "action",
+        "description": "Open a task for review"
+      },
+      {
+        "type": "action",
+        "description": "Approve the task"
+      },
+      {
+        "type": "action",
+        "description": "Export the approved document"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task is marked approved"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an export confirmation is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC010",
+    "title": "Dashboard shows summary counts and folder breakdowns",
+    "description": "A signed-in user can review task status counts and folder-level breakdowns on the dashboard.",
+    "category": "Dashboard Summary",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify task status counts are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify folder breakdowns are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC011",
+    "title": "Search and filter tasks within a folder",
+    "description": "This verifies a user can narrow a folder task list by search and status filters and see matching tasks.",
+    "category": "Folder Detail — Task List, Search & Bulk Actions",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /folders"
+      },
+      {
+        "type": "action",
+        "description": "Click a folder card"
+      },
+      {
+        "type": "action",
+        "description": "Enter a task search term"
+      },
+      {
+        "type": "action",
+        "description": "Adjust the status filter"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task list is narrowed to matching results"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify filtered tasks are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC012",
+    "title": "Create a new task template with fields and save it",
+    "description": "Verifies that an admin can create a new template, configure fields, and save it successfully.",
+    "category": "Form Builder (Create/Edit Template)",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to the new template builder"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the template name field with a unique template name"
+      },
+      {
+        "type": "action",
+        "description": "Toggle the active state"
+      },
+      {
+        "type": "action",
+        "description": "Add a field to the template"
+      },
+      {
+        "type": "action",
+        "description": "Select the newly added field"
+      },
+      {
+        "type": "action",
+        "description": "Configure the selected field"
+      },
+      {
+        "type": "action",
+        "description": "Save the template"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the new template is saved"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the template includes the configured field"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC013",
+    "title": "Dashboard opens a folder from the summary",
+    "description": "A signed-in user can open a folder directly from the dashboard summary and reach its task list.",
+    "category": "Dashboard Summary",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click a folder entry in the dashboard summary"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the folder task list is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC014",
+    "title": "Open a task for review from a folder",
+    "description": "This verifies a user can open an individual task from a folder and reach the task review page.",
+    "category": "Folder Detail — Task List, Search & Bulk Actions",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /folders"
+      },
+      {
+        "type": "action",
+        "description": "Click a folder card"
+      },
+      {
+        "type": "action",
+        "description": "Open a task for review"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task review page is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC015",
+    "title": "Export an approved task as PDF",
+    "description": "Verifies a supervisor can export an approved task and receive the final PDF document from the task review page.",
+    "category": "Task Review & Approval",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the login credentials for the supervisor role"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to an approved task review page"
+      },
+      {
+        "type": "action",
+        "description": "Export the task as PDF"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a PDF export becomes available"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the approved task remains visible after export"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC016",
+    "title": "Reorder layout blocks by dragging them on the canvas",
+    "description": "Verifies that an authenticated user can reorder blocks in an existing layout using drag-and-drop and preserve the new arrangement after saving.",
+    "category": "Layout Builder — Blocks, Drag-and-Drop, Save",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /layouts"
+      },
+      {
+        "type": "action",
+        "description": "Click a layout card to open its builder"
+      },
+      {
+        "type": "action",
+        "description": "Drag a block to a different position in the canvas"
+      },
+      {
+        "type": "action",
+        "description": "Save the layout"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a success confirmation is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the block order is reflected in the canvas"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC017",
+    "title": "Export an approved task as Word",
+    "description": "Verifies a supervisor can export an approved task and receive the final Word document from the task review page.",
+    "category": "Task Review & Approval",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the login credentials for the supervisor role"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to an approved task review page"
+      },
+      {
+        "type": "action",
+        "description": "Export the task as Word"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a Word export becomes available"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the approved task remains visible after export"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC018",
+    "title": "Create and manage application users",
+    "description": "This verifies an admin can create a user, reveal the temporary password, and change the user's active status.",
+    "category": "User Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /users"
+      },
+      {
+        "type": "action",
+        "description": "Create a new user account"
+      },
+      {
+        "type": "action",
+        "description": "Reveal the one-time password"
+      },
+      {
+        "type": "action",
+        "description": "Deactivate the user account"
+      },
+      {
+        "type": "action",
+        "description": "Reactivate the user account"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user account appears in the user list"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC019",
+    "title": "Create and save a matching output layout from a template",
+    "description": "Verifies that an admin can select a source template, build an output layout, and save it successfully.",
+    "category": "Bulk Import Tasks via Excel",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to the new layout builder"
+      },
+      {
+        "type": "action",
+        "description": "Select a source template"
+      },
+      {
+        "type": "action",
+        "description": "Add a block to the layout"
+      },
+      {
+        "type": "action",
+        "description": "Save the layout"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the new layout is saved"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the layout contains the added block"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC020",
+    "title": "Assign a task to a technician",
+    "description": "This verifies an admin can assign a new task in a folder by choosing a template, technician, and due date, then see it in the folder list.",
+    "category": "Assign Task Dialog",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /folders"
+      },
+      {
+        "type": "action",
+        "description": "Click a folder card"
+      },
+      {
+        "type": "action",
+        "description": "Start assigning a task"
+      },
+      {
+        "type": "action",
+        "description": "Select a template"
+      },
+      {
+        "type": "action",
+        "description": "Select a technician"
+      },
+      {
+        "type": "action",
+        "description": "Fill a valid due date into the due date field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the task assignment"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the new task appears in the folder task list"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC021",
+    "title": "Assign a task to a technician from a folder",
+    "description": "Verifies that an admin can open a folder task list, assign a task to a technician, and see the assignment reflected in the task list.",
+    "category": "Bulk Import Tasks via Excel",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open a folder from the folder list"
+      },
+      {
+        "type": "action",
+        "description": "Open the task assignment flow for a task in the folder"
+      },
+      {
+        "type": "action",
+        "description": "Assign the task to a technician"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task is shown as assigned to a technician"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC022",
+    "title": "Create a task template",
+    "description": "This verifies an admin can create a new task template in the form builder and save it successfully.",
+    "category": "Task Template Builder",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /templates/new"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the template name field"
+      },
+      {
+        "type": "action",
+        "description": "Add a form field"
+      },
+      {
+        "type": "action",
+        "description": "Save the template"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the template is created"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a success confirmation is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC023",
+    "title": "Edit block properties and save the layout",
+    "description": "Verifies that an authenticated user can select a block, change its properties, and save the updated layout.",
+    "category": "Layout Builder — Blocks, Drag-and-Drop, Save",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /layouts"
+      },
+      {
+        "type": "action",
+        "description": "Click a layout card to open its builder"
+      },
+      {
+        "type": "action",
+        "description": "Select a block on the canvas"
+      },
+      {
+        "type": "action",
+        "description": "Edit the selected block properties"
+      },
+      {
+        "type": "action",
+        "description": "Save the layout"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a success confirmation is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the edited block properties are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC024",
+    "title": "Import tasks from a valid Excel file and review results",
+    "description": "Verifies that an admin can download an Excel template, upload a completed file, review parsed rows, and confirm successful per-row task creation outcomes.",
+    "category": "Bulk Import Tasks via Excel",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open a folder from the folder list"
+      },
+      {
+        "type": "action",
+        "description": "Start the Excel bulk import flow"
+      },
+      {
+        "type": "action",
+        "description": "Select a task template for import"
+      },
+      {
+        "type": "action",
+        "description": "Download the Excel template"
+      },
+      {
+        "type": "action",
+        "description": "Upload a completed Excel file"
+      },
+      {
+        "type": "action",
+        "description": "Submit the batch import"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify parsed rows are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify per-row creation results are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC025",
+    "title": "Browse layouts and open a layout for editing",
+    "description": "Verifies that an authenticated user can review the layout list and open an existing layout in the builder.",
+    "category": "Output Layout List",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /layouts"
+      },
+      {
+        "type": "action",
+        "description": "Click a layout card to open its builder"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the layout builder is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the selected layout canvas is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC026",
+    "title": "Create a user account",
+    "description": "Verifies an admin can create a new application user and see the one-time password reveal after submission.",
+    "category": "User Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the login credentials for the admin role"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /users"
+      },
+      {
+        "type": "action",
+        "description": "Start adding a user"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the new user's name, email, and role"
+      },
+      {
+        "type": "action",
+        "description": "Submit the new user form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the new user appears in the user list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a one-time password reveal is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC027",
+    "title": "Edit and reorder fields in an existing template",
+    "description": "Verifies that an admin can modify an existing template's fields, reorder them, and save the updates successfully.",
+    "category": "Form Builder (Create/Edit Template)",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open an existing template from the template list"
+      },
+      {
+        "type": "action",
+        "description": "Add a field to the template"
+      },
+      {
+        "type": "action",
+        "description": "Move the field up in the order"
+      },
+      {
+        "type": "action",
+        "description": "Save the template"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the updated field order is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the template changes are saved"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC028",
+    "title": "Reject a task with review comments",
+    "description": "This verifies a supervisor can reject a task after entering comments and the task is marked for send-back.",
+    "category": "Task Review and Approval",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /folders"
+      },
+      {
+        "type": "action",
+        "description": "Click a folder card"
+      },
+      {
+        "type": "action",
+        "description": "Open a task for review"
+      },
+      {
+        "type": "action",
+        "description": "Enter review comments"
+      },
+      {
+        "type": "action",
+        "description": "Reject the task"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task is sent back for revision"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC029",
+    "title": "Start creating a new layout from the list",
+    "description": "Verifies that an authenticated user can begin the new layout setup flow from the layout list.",
+    "category": "Output Layout List",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /layouts"
+      },
+      {
+        "type": "action",
+        "description": "Click the control to create a new layout"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the new layout builder setup is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the source template selection is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC030",
+    "title": "Edit and save an existing task template",
+    "description": "This verifies an admin can update an existing template in the form builder and save the changes.",
+    "category": "Task Template Builder",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /templates"
+      },
+      {
+        "type": "action",
+        "description": "Open a template for editing"
+      },
+      {
+        "type": "action",
+        "description": "Update a template field"
+      },
+      {
+        "type": "action",
+        "description": "Save the template"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the template changes are saved"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC031",
+    "title": "Reset a user's password",
+    "description": "This verifies an admin can reset an existing user's password from user management.",
+    "category": "User Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /users"
+      },
+      {
+        "type": "action",
+        "description": "Open a user account"
+      },
+      {
+        "type": "action",
+        "description": "Reset the user's password"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a password reset confirmation is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC032",
+    "title": "Deactivate and reactivate a user account",
+    "description": "Verifies an admin can toggle a user between active and inactive states from the user management page.",
+    "category": "User Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the login credentials for the admin role"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /users"
+      },
+      {
+        "type": "action",
+        "description": "Open the actions menu for an existing user"
+      },
+      {
+        "type": "action",
+        "description": "Deactivate the user account"
+      },
+      {
+        "type": "action",
+        "description": "Open the actions menu for the same user"
+      },
+      {
+        "type": "action",
+        "description": "Reactivate the user account"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user account appears active again"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the account status changes are reflected in the list"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC033",
+    "title": "Reorder layout blocks and save the arrangement",
+    "description": "This verifies an admin can rearrange blocks in the layout builder and persist the new order.",
+    "category": "Output Layout Builder",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /layouts"
+      },
+      {
+        "type": "action",
+        "description": "Open a layout for editing"
+      },
+      {
+        "type": "action",
+        "description": "Reorder a layout block"
+      },
+      {
+        "type": "action",
+        "description": "Save the layout"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the block order is updated"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC034",
+    "title": "Dashboard opens an overdue task from the summary",
+    "description": "A signed-in user can open an overdue task from the dashboard and reach the task review page.",
+    "category": "Dashboard Summary",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click an overdue task entry in the dashboard summary"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task review page is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC035",
+    "title": "Delete a single task from a folder",
+    "description": "This verifies a user can delete one task from a folder and see the list update afterward.",
+    "category": "Folder Detail — Task List, Search & Bulk Actions",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /folders"
+      },
+      {
+        "type": "action",
+        "description": "Click a folder card"
+      },
+      {
+        "type": "action",
+        "description": "Delete one task"
+      },
+      {
+        "type": "action",
+        "description": "Confirm the deletion"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task list is updated after deletion"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC036",
+    "title": "Bulk delete selected tasks from a folder",
+    "description": "This verifies a user can select multiple tasks, bulk delete them, and see the updated folder list.",
+    "category": "Folder Detail — Task List, Search & Bulk Actions",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /folders"
+      },
+      {
+        "type": "action",
+        "description": "Click a folder card"
+      },
+      {
+        "type": "action",
+        "description": "Select multiple eligible tasks"
+      },
+      {
+        "type": "action",
+        "description": "Choose bulk delete"
+      },
+      {
+        "type": "action",
+        "description": "Confirm the deletion"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the selected tasks are removed from the list"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC037",
+    "title": "Apply an AI layout suggestion to the canvas",
+    "description": "Verifies that an authenticated user can generate an AI suggestion and apply it to the current layout canvas.",
+    "category": "Layout AI Assistant",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /layouts"
+      },
+      {
+        "type": "action",
+        "description": "Click a layout card to open its builder"
+      },
+      {
+        "type": "action",
+        "description": "Open the AI assistant tab"
+      },
+      {
+        "type": "action",
+        "description": "Enter a layout suggestion prompt"
+      },
+      {
+        "type": "action",
+        "description": "Send the prompt"
+      },
+      {
+        "type": "action",
+        "description": "Apply the generated suggestion"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the suggested blocks are displayed on the canvas"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the canvas contains newly added layout content"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC038",
+    "title": "Remove an attachment from a task",
+    "description": "Verifies a reviewer can open a task attachment and delete it so the updated task content is shown.",
+    "category": "Task Review & Approval",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the login credentials for the supervisor role"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to a task review page with at least one attachment"
+      },
+      {
+        "type": "action",
+        "description": "Open the attachment"
+      },
+      {
+        "type": "action",
+        "description": "Delete the attachment and confirm the browser dialog"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the attachment is removed from the task"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the updated task content is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC039",
+    "title": "Browse task templates and open the template builder",
+    "description": "Verifies that an admin can view the template list and open an existing template for editing.",
+    "category": "Task Template List",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to the template list"
+      },
+      {
+        "type": "action",
+        "description": "Open an existing template"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the template builder is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC040",
+    "title": "Apply and undo a layout AI suggestion",
+    "description": "This verifies an admin can apply an AI suggestion in the layout builder and undo the last change.",
+    "category": "Output Layout Builder",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /layouts"
+      },
+      {
+        "type": "action",
+        "description": "Open a layout for editing"
+      },
+      {
+        "type": "action",
+        "description": "Apply an AI suggestion"
+      },
+      {
+        "type": "action",
+        "description": "Undo the last layout change"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the layout returns to its prior state"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC041",
+    "title": "Discard an AI layout suggestion",
+    "description": "Verifies that an authenticated user can review an AI-generated suggestion and discard it without changing the canvas.",
+    "category": "Layout AI Assistant",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /layouts"
+      },
+      {
+        "type": "action",
+        "description": "Click a layout card to open its builder"
+      },
+      {
+        "type": "action",
+        "description": "Open the AI assistant tab"
+      },
+      {
+        "type": "action",
+        "description": "Enter a layout suggestion prompt"
+      },
+      {
+        "type": "action",
+        "description": "Send the prompt"
+      },
+      {
+        "type": "action",
+        "description": "Discard the generated suggestion"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the suggestion is no longer displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the canvas remains unchanged"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC042",
+    "title": "Undo the last applied AI suggestion",
+    "description": "Verifies that an authenticated user can undo the most recently applied AI suggestion and restore the previous canvas state.",
+    "category": "Layout AI Assistant",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /layouts"
+      },
+      {
+        "type": "action",
+        "description": "Click a layout card to open its builder"
+      },
+      {
+        "type": "action",
+        "description": "Open the AI assistant tab"
+      },
+      {
+        "type": "action",
+        "description": "Enter a layout suggestion prompt"
+      },
+      {
+        "type": "action",
+        "description": "Send the prompt"
+      },
+      {
+        "type": "action",
+        "description": "Apply the generated suggestion"
+      },
+      {
+        "type": "action",
+        "description": "Undo the last applied suggestion"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the canvas returns to its previous state"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the applied suggestion is removed"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC043",
+    "title": "Technician sign-in is rejected",
+    "description": "A technician user is prevented from signing in and sees an access rejection message.",
+    "category": "Login",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an access rejection message is visible"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC044",
+    "title": "See validation when required assignment fields are missing",
+    "description": "This verifies the assign task flow blocks submission and shows validation feedback when required fields are omitted.",
+    "category": "Assign Task Dialog",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /folders"
+      },
+      {
+        "type": "action",
+        "description": "Click a folder card"
+      },
+      {
+        "type": "action",
+        "description": "Start assigning a task"
+      },
+      {
+        "type": "action",
+        "description": "Submit the task assignment"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify validation feedback is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task is not created"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC045",
+    "title": "Reject an unsupported upload format during bulk import",
+    "description": "Verifies that an admin sees an upload error when trying to bulk import tasks with an unsupported file format.",
+    "category": "Bulk Import Tasks via Excel",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open a folder from the folder list"
+      },
+      {
+        "type": "action",
+        "description": "Start the Excel bulk import flow"
+      },
+      {
+        "type": "action",
+        "description": "Upload an unsupported file format"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an upload error message is visible"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC046",
+    "title": "Reject a field without a comment",
+    "description": "Verifies the review form prevents sending a reject action unless the required comment is provided.",
+    "category": "Task Review & Approval",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the login credentials for the supervisor role"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to a task review page"
+      },
+      {
+        "type": "action",
+        "description": "Reject a field without entering a comment"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a comment validation error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task is not marked for revision"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC047",
+    "title": "Reject technician login",
+    "description": "This verifies the login form blocks technician credentials from entering the application.",
+    "category": "Authentication",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in invalid technician credentials into the username and password fields"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the login screen remains visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a sign-in error is visible"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC048",
+    "title": "Prevent creating a user with a weak password",
+    "description": "Verifies user creation blocks submission when the password does not meet the minimum rules.",
+    "category": "User Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the login credentials for the admin role"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /users"
+      },
+      {
+        "type": "action",
+        "description": "Start adding a user"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the new user's name, email, and role"
+      },
+      {
+        "type": "action",
+        "description": "Replace the generated password with a weak password"
+      },
+      {
+        "type": "action",
+        "description": "Submit the new user form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a password validation error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user is not created"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC049",
+    "title": "See validation when reject comments are missing",
+    "description": "This verifies the review flow requires comments before a task can be rejected.",
+    "category": "Task Review and Approval",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /folders"
+      },
+      {
+        "type": "action",
+        "description": "Click a folder card"
+      },
+      {
+        "type": "action",
+        "description": "Open a task for review"
+      },
+      {
+        "type": "action",
+        "description": "Reject the task"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a comment validation error is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task remains under review"
+      }
+    ],
+    "priority": "Low"
+  }
+]

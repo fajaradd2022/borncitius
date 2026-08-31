@@ -1,0 +1,124 @@
+# Stack produksi Born Citius.
+#
+# Catatan port: 80/443 di server ini sudah dipakai container lain (onyx-nginx),
+# sehingga stack ini di-expose di 8080. Saat domain & TLS sudah siap, arahkan
+# reverse proxy yang ada ke port tersebut.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bc-prod-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - prod-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [bc]
+
+  redis:
+    image: redis:7-alpine
+    container_name: bc-prod-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - prod-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks: [bc]
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: bc-prod-api
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      PORT: 4000
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL_DAYS: 30
+      STORAGE_ROOT: /data/storage
+      CORS_ORIGIN: ${PUBLIC_WEB_URL},${PUBLIC_TEKNISI_URL}
+      GDRIVE_ENABLED: ${GDRIVE_ENABLED:-false}
+      GDRIVE_REMOTE: ${GDRIVE_REMOTE:-gdrive}
+      GDRIVE_ROOT_FOLDER_ID: ${GDRIVE_ROOT_FOLDER_ID:-}
+      GDRIVE_BASE_PATH: ${GDRIVE_BASE_PATH:-BORN CITIUS}
+      RCLONE_CONFIG: /home/node/.config/rclone/rclone.conf
+    volumes:
+      - prod-storage:/data/storage
+      # Config rclone di-mount read-only; credential tetap milik host.
+      - ${RCLONE_CONFIG_PATH}:/home/node/.config/rclone/rclone.conf:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [bc]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web-admin/Dockerfile
+    container_name: bc-prod-web
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: "0.0.0.0"
+      API_URL: http://api:4000/api
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AI_N8N_WEBHOOK_URL: ${AI_N8N_WEBHOOK_URL:-}
+      AI_UPLOAD_DIR: /data/ai-uploads
+      AI_TIMEOUT_MS: 300000
+    volumes:
+      - prod-ai-uploads:/data/ai-uploads
+    ports:
+      - "${PUBLIC_PORT:-8080}:3000"
+    networks: [bc]
+
+  teknisi:
+    build:
+      context: .
+      dockerfile: apps/web-teknisi/Dockerfile
+    container_name: bc-prod-teknisi
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: "0.0.0.0"
+      API_URL: http://api:4000/api
+    ports:
+      - "${TEKNISI_PORT:-8081}:3000"
+    networks: [bc]
+
+volumes:
+  prod-postgres:
+  prod-redis:
+  prod-storage:
+  prod-ai-uploads:
+
+networks:
+  bc:
+    driver: bridge

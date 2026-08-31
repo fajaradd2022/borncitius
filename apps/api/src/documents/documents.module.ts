@@ -1,0 +1,202 @@
+import {
+  BadRequestException,
+  Controller,
+  ForbiddenException,
+  Get,
+  Module,
+  NotFoundException,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Res,
+} from '@nestjs/common';
+import type { Response } from 'express';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
+import { PdfService, type RenderBlock } from './pdf.service';
+import { DocxService } from './docx.service';
+import { CurrentUser, type AuthUser } from '../common/decorators/current-user.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
+
+@Controller('tasks/:taskId/document')
+@Roles('admin', 'spv')
+class DocumentsController {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+    private readonly pdf: PdfService,
+    private readonly docx: DocxService,
+    private readonly config: ConfigService,
+  ) {}
+
+  /**
+   * Membuat dokumen akhir untuk task yang sudah disetujui.
+   *
+   * Layout yang dipakai mengikuti override folder bila ada, jika tidak memakai
+   * layout default template (PRD 4.2/4.3).
+   */
+  /**
+   * Menyusun blok siap-render dari layout yang berlaku + isian task.
+   * Dipakai bersama oleh export PDF dan Word agar aturannya tidak bercabang.
+   */
+  private async buildBlocks(user: AuthUser, taskId: string) {
+    const task = await this.prisma.taskInstance.findUnique({
+      where: { id: taskId },
+      include: {
+        folder: { select: { id: true, name: true, defaultReviewerId: true } },
+        template: { select: { id: true, name: true } },
+        fields: {
+          orderBy: { orderIndex: 'asc' },
+          include: { attachments: { select: { storagePath: true, mimeType: true } } },
+        },
+      },
+    });
+    if (!task) throw new NotFoundException('Task tidak ditemukan.');
+
+    if (user.role === 'spv' && task.folder.defaultReviewerId !== user.id && task.reviewerOverrideId !== user.id) {
+      throw new ForbiddenException('Anda bukan reviewer untuk task ini.');
+    }
+    if (task.status !== 'approved') {
+      throw new BadRequestException('Dokumen hanya bisa dibuat untuk task yang sudah disetujui.');
+    }
+
+    const override = await this.prisma.folderLayoutOverride.findUnique({
+      where: { folderId_templateId: { folderId: task.folderId, templateId: task.templateId } },
+      select: { layoutId: true },
+    });
+
+    const layout = await this.prisma.outputLayout.findFirst({
+      where: override ? { id: override.layoutId } : { sourceTemplateId: task.templateId, isDefault: true },
+      include: { blocks: { orderBy: { orderIndex: 'asc' } } },
+    });
+    if (!layout) {
+      throw new BadRequestException('Belum ada Output Layout untuk template ini. Buat layout terlebih dahulu.');
+    }
+
+    // Blok layout merujuk field template, sedangkan task menyimpan salinannya
+    // sendiri (versioning) — pemetaan dilakukan lewat label.
+    const byLabel = new Map(task.fields.map((f) => [f.label, f]));
+    const templateFields = await this.prisma.templateField.findMany({
+      where: { templateId: task.templateId },
+      select: { id: true, label: true },
+    });
+    const labelById = new Map(templateFields.map((f) => [f.id, f.label]));
+
+    const blocks: RenderBlock[] = layout.blocks.map((b) => {
+      const label = b.sourceFieldId ? labelById.get(b.sourceFieldId) : undefined;
+      const field = label ? byLabel.get(label) : undefined;
+      const cfg = (b.config ?? {}) as Record<string, unknown>;
+
+      return {
+        type: b.type,
+        label: b.label || label || '',
+        orderIndex: b.orderIndex,
+        displayStyle: b.displayStyle,
+        config: cfg,
+        value: typeof field?.value === 'string' ? field.value : null,
+        caption: typeof cfg.caption === 'string' ? cfg.caption : undefined,
+        attachments: field?.attachments.map((a) => ({
+          absolutePath: this.storage.absolutePathFor(a.storagePath),
+          mimeType: a.mimeType,
+        })),
+      };
+    });
+
+    const siteId = task.siteId ?? task.id.slice(0, 8);
+    return {
+      blocks,
+      layoutId: layout.id,
+      siteId,
+      folderName: task.folder.name,
+      ctx: {
+        title: `${task.template.name} — ${siteId}`,
+        subtitle: task.folder.name,
+        referenceNumber: `BC-${task.id.slice(0, 8).toUpperCase()}`,
+      },
+    };
+  }
+
+  @Post()
+  async generate(@CurrentUser() user: AuthUser, @Param('taskId', ParseUUIDPipe) taskId: string) {
+    const { blocks, ctx, layoutId, siteId, folderName } = await this.buildBlocks(user, taskId);
+
+    const generated = await this.pdf.render(blocks, ctx);
+
+    // Lampiran di depan bila blok attachment muncul sebelum blok yang di-generate.
+    const firstGenerated = blocks.find((b) => b.type !== 'attachment');
+    const firstAttachment = blocks.find((b) => b.type === 'attachment');
+    const attachmentBefore =
+      firstAttachment !== undefined &&
+      (firstGenerated === undefined || firstAttachment.orderIndex < firstGenerated.orderIndex);
+
+    const merged = await this.pdf.assemble(generated, blocks, attachmentBefore);
+
+    const relPath = join('documents', folderName, `${siteId}-${Date.now()}.pdf`);
+    const absPath = join(this.config.getOrThrow<string>('STORAGE_ROOT'), relPath);
+    await mkdir(dirname(absPath), { recursive: true });
+    await writeFile(absPath, merged, { mode: 0o640 });
+
+    const doc = await this.prisma.generatedDocument.upsert({
+      where: { taskInstanceId: taskId },
+      create: { taskInstanceId: taskId, layoutId, pdfPath: relPath, generatedAt: new Date() },
+      update: { layoutId, pdfPath: relPath, generatedAt: new Date() },
+      select: { id: true, pdfPath: true, generatedAt: true },
+    });
+
+    return { ...doc, sizeBytes: merged.length, pages: blocks.length };
+  }
+
+  /** Word berisi data mentah saja — lampiran tetap hanya di PDF. */
+  @Get('word')
+  async downloadWord(
+    @CurrentUser() user: AuthUser,
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Res() res: Response,
+  ) {
+    const { blocks, ctx, siteId } = await this.buildBlocks(user, taskId);
+    const buffer = await this.docx.render(blocks, ctx);
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="BAST-${siteId}.docx"`);
+    res.send(buffer);
+  }
+
+  @Get('pdf')
+  async download(
+    @CurrentUser() user: AuthUser,
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Res() res: Response,
+  ) {
+    const doc = await this.prisma.generatedDocument.findUnique({
+      where: { taskInstanceId: taskId },
+      include: { taskInstance: { select: { siteId: true, folder: { select: { defaultReviewerId: true } }, reviewerOverrideId: true } } },
+    });
+    if (!doc?.pdfPath) throw new NotFoundException('Dokumen belum dibuat.');
+
+    const t = doc.taskInstance;
+    if (user.role === 'spv' && t.folder.defaultReviewerId !== user.id && t.reviewerOverrideId !== user.id) {
+      throw new ForbiddenException('Anda bukan reviewer untuk task ini.');
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="BAST-${t.siteId ?? taskId.slice(0, 8)}.pdf"`,
+    );
+    // dotfiles: 'allow' — see tasks.controller.ts's attachmentFile for why
+    // this is needed (STORAGE_ROOT may contain a dot-prefixed segment).
+    res.sendFile(this.storage.absolutePathFor(doc.pdfPath), { dotfiles: 'allow' });
+  }
+}
+
+@Module({
+  controllers: [DocumentsController],
+  providers: [PdfService, DocxService],
+})
+export class DocumentsModule {}

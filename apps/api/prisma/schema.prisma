@@ -1,0 +1,362 @@
+// Skema Born Citius — terjemahan langsung dari ERD di prd.md Bagian 7.
+// Nama field memakai camelCase (idiomatik Prisma/TS) dengan @map ke snake_case
+// di database, agar konsisten dengan konvensi SQL.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  spv
+  teknisi
+}
+
+enum TaskStatus {
+  assigned
+  in_progress
+  submitted
+  rejected
+  approved
+}
+
+enum FieldType {
+  text
+  number
+  date
+  dropdown
+  radio
+  checkbox
+  textarea
+  photo
+  file
+  signed_document
+  gps
+  section
+  repeat_table
+}
+
+enum ReviewStatus {
+  pending
+  approved
+  rejected
+}
+
+enum AttachmentType {
+  photo_taken
+  photo_uploaded
+  file_uploaded
+  signed_document
+}
+
+enum SyncStatus {
+  pending
+  synced
+  failed
+}
+
+enum ReviewAction {
+  approve_field
+  reject_field
+  approve_all
+  edit_field
+  reopen
+}
+
+enum NotificationType {
+  task_assigned
+  task_rejected
+}
+
+enum LayoutBlockType {
+  text
+  image
+  field
+  field_grid
+  table
+  photo_page
+  attachment
+  page_break
+  header
+  footer
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  foldersReviewing  Folder[]         @relation("FolderDefaultReviewer")
+  foldersCreated    Folder[]         @relation("FolderCreatedBy")
+  templatesCreated  TaskTemplate[]
+  layoutsCreated    OutputLayout[]
+  tasksAssigned     TaskInstance[]   @relation("TaskAssignedTeknisi")
+  tasksReviewing    TaskInstance[]   @relation("TaskReviewerOverride")
+  reviewLogs        ReviewLog[]
+  deviceSessions    DeviceSession[]
+  notifications     Notification[]
+
+  @@index([role, isActive])
+  @@map("users")
+}
+
+model Folder {
+  id                String   @id @default(uuid())
+  name              String
+  clientName        String   @map("client_name")
+  defaultReviewerId String   @map("default_reviewer_id")
+  createdBy         String   @map("created_by")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  defaultReviewer User                    @relation("FolderDefaultReviewer", fields: [defaultReviewerId], references: [id], onDelete: Restrict)
+  creator         User                    @relation("FolderCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
+  tasks           TaskInstance[]
+  layoutOverrides FolderLayoutOverride[]
+
+  @@index([defaultReviewerId])
+  @@map("folders")
+}
+
+model TaskTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  description String   @default("")
+  version     Int      @default(1)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  creator         User                   @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+  fields          TemplateField[]
+  tasks           TaskInstance[]
+  layouts         OutputLayout[]
+  layoutOverrides FolderLayoutOverride[]
+
+  @@index([isActive])
+  @@map("task_templates")
+}
+
+model TemplateField {
+  id         String    @id @default(uuid())
+  templateId String    @map("template_id")
+  label      String
+  fieldType  FieldType @map("field_type")
+  options    Json?
+  isRequired Boolean   @default(false) @map("is_required")
+  section    String    @default("")
+  orderIndex Int       @map("order_index")
+
+  template     TaskTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  layoutBlocks LayoutBlock[]
+
+  @@index([templateId, orderIndex])
+  @@map("template_fields")
+}
+
+model TaskInstance {
+  id                      String     @id @default(uuid())
+  folderId                String     @map("folder_id")
+  templateId              String     @map("template_id")
+  templateVersionSnapshot Int        @map("template_version_snapshot")
+  assignedTeknisiId       String     @map("assigned_teknisi_id")
+  reviewerOverrideId      String?    @map("reviewer_override_id")
+  status                  TaskStatus @default(assigned)
+  /// Kode site/store — dipakai sebagai nama folder di Google Drive (PRD 8.1).
+  siteId                  String?    @map("site_id")
+  lockedByDeviceId        String?    @map("locked_by_device_id")
+  dueDate                 DateTime   @map("due_date")
+  submittedAt             DateTime?  @map("submitted_at")
+  approvedAt              DateTime?  @map("approved_at")
+  createdAt               DateTime   @default(now()) @map("created_at")
+
+  folder            Folder             @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  template          TaskTemplate       @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  assignedTeknisi   User               @relation("TaskAssignedTeknisi", fields: [assignedTeknisiId], references: [id], onDelete: Restrict)
+  reviewerOverride  User?              @relation("TaskReviewerOverride", fields: [reviewerOverrideId], references: [id], onDelete: SetNull)
+  fields            TaskInstanceField[]
+  reviewLogs        ReviewLog[]
+  generatedDocument GeneratedDocument?
+
+  @@index([folderId, status])
+  @@index([assignedTeknisiId, status])
+  @@index([status, dueDate])
+  @@map("task_instances")
+}
+
+model TaskInstanceField {
+  id             String       @id @default(uuid())
+  taskInstanceId String       @map("task_instance_id")
+  fieldKey       String       @map("field_key")
+  label          String
+  fieldType      FieldType    @map("field_type")
+  options        Json?
+  isRequired     Boolean      @default(false) @map("is_required")
+  section        String       @default("")
+  orderIndex     Int          @map("order_index")
+  value          Json?
+  reviewStatus   ReviewStatus @default(pending) @map("review_status")
+  rejectComment  String?      @map("reject_comment")
+  reviewedBy     String?      @map("reviewed_by")
+  reviewedAt     DateTime?    @map("reviewed_at")
+  lastEditedBy   String?      @map("last_edited_by")
+  lastEditedAt   DateTime?    @map("last_edited_at")
+
+  taskInstance TaskInstance @relation(fields: [taskInstanceId], references: [id], onDelete: Cascade)
+  attachments  Attachment[]
+  reviewLogs   ReviewLog[]
+
+  @@index([taskInstanceId, orderIndex])
+  @@map("task_instance_fields")
+}
+
+model Attachment {
+  id                  String         @id @default(uuid())
+  taskInstanceFieldId String         @map("task_instance_field_id")
+  type                AttachmentType
+  /// Path relatif di dalam STORAGE_ROOT — bukan URL absolut, agar storage
+  /// bisa dipindah (lokal → MinIO) tanpa migrasi data.
+  storagePath         String         @map("storage_path")
+  originalName        String         @map("original_name")
+  mimeType            String         @map("mime_type")
+  sizeBytes           Int            @map("size_bytes")
+  watermarkMetadata   Json?          @map("watermark_metadata")
+  syncStatus          SyncStatus     @default(pending) @map("sync_status")
+  driveUrl            String?        @map("drive_url")
+  syncError           String?        @map("sync_error")
+  capturedAt          DateTime?      @map("captured_at")
+  syncedAt            DateTime?      @map("synced_at")
+  createdAt           DateTime       @default(now()) @map("created_at")
+
+  taskInstanceField TaskInstanceField @relation(fields: [taskInstanceFieldId], references: [id], onDelete: Cascade)
+
+  @@index([taskInstanceFieldId])
+  @@index([syncStatus])
+  @@map("attachments")
+}
+
+model GeneratedDocument {
+  id                  String   @id @default(uuid())
+  taskInstanceId      String   @unique @map("task_instance_id")
+  layoutId            String?  @map("layout_id")
+  pdfPath             String?  @map("pdf_path")
+  wordPath            String?  @map("word_path")
+  driveUrl            String?  @map("drive_url")
+  syncStatus          SyncStatus @default(pending) @map("sync_status")
+  mergedAttachmentIds Json?    @map("merged_attachment_ids")
+  generatedAt         DateTime @default(now()) @map("generated_at")
+
+  taskInstance TaskInstance  @relation(fields: [taskInstanceId], references: [id], onDelete: Cascade)
+  layout       OutputLayout? @relation(fields: [layoutId], references: [id], onDelete: SetNull)
+
+  @@map("generated_documents")
+}
+
+model ReviewLog {
+  id                  String       @id @default(uuid())
+  taskInstanceId      String       @map("task_instance_id")
+  reviewerId          String       @map("reviewer_id")
+  taskInstanceFieldId String?      @map("task_instance_field_id")
+  action              ReviewAction
+  comment             String?
+  previousValue       Json?        @map("previous_value")
+  createdAt           DateTime     @default(now()) @map("created_at")
+
+  taskInstance      TaskInstance       @relation(fields: [taskInstanceId], references: [id], onDelete: Cascade)
+  reviewer          User               @relation(fields: [reviewerId], references: [id], onDelete: Restrict)
+  taskInstanceField TaskInstanceField? @relation(fields: [taskInstanceFieldId], references: [id], onDelete: SetNull)
+
+  @@index([taskInstanceId, createdAt])
+  @@map("review_logs")
+}
+
+model DeviceSession {
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  deviceId         String   @map("device_id")
+  /// Hash dari refresh token — token mentah tidak pernah disimpan.
+  refreshTokenHash String   @map("refresh_token_hash")
+  pushSubscription Json?    @map("push_subscription")
+  userAgent        String?  @map("user_agent")
+  expiresAt        DateTime @map("expires_at")
+  lastActiveAt     DateTime @default(now()) @map("last_active_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("device_sessions")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  type      NotificationType
+  message   String
+  isRead    Boolean          @default(false) @map("is_read")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model OutputLayout {
+  id               String   @id @default(uuid())
+  name             String
+  sourceTemplateId String   @map("source_template_id")
+  isDefault        Boolean  @default(false) @map("is_default")
+  createdBy        String   @map("created_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  sourceTemplate TaskTemplate           @relation(fields: [sourceTemplateId], references: [id], onDelete: Cascade)
+  creator        User                   @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+  blocks         LayoutBlock[]
+  folderOverrides FolderLayoutOverride[]
+  documents      GeneratedDocument[]
+
+  @@index([sourceTemplateId, isDefault])
+  @@map("output_layouts")
+}
+
+model LayoutBlock {
+  id            String          @id @default(uuid())
+  layoutId      String          @map("layout_id")
+  type          LayoutBlockType
+  label         String          @default("")
+  sourceFieldId String?         @map("source_field_id")
+  displayStyle  String?         @map("display_style")
+  orderIndex    Int             @map("order_index")
+  textStyle     Json?           @map("text_style")
+  border        Json?
+  config        Json?
+
+  layout      OutputLayout   @relation(fields: [layoutId], references: [id], onDelete: Cascade)
+  sourceField TemplateField? @relation(fields: [sourceFieldId], references: [id], onDelete: SetNull)
+
+  @@index([layoutId, orderIndex])
+  @@map("layout_blocks")
+}
+
+model FolderLayoutOverride {
+  folderId   String @map("folder_id")
+  templateId String @map("template_id")
+  layoutId   String @map("layout_id")
+
+  folder   Folder       @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  template TaskTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  layout   OutputLayout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
+
+  @@id([folderId, templateId])
+  @@map("folder_layout_overrides")
+}

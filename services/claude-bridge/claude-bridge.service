@@ -1,0 +1,27 @@
+# Unit systemd user-level. Pasang dengan:
+#   mkdir -p ~/.config/systemd/user
+#   cp claude-bridge.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now claude-bridge
+#   sudo loginctl enable-linger $USER   # agar tetap hidup setelah logout
+#
+# Berjalan sebagai user pemilik ~/.claude, sehingga credential langganan
+# claude.ai tidak perlu disalin ke container mana pun.
+[Unit]
+Description=Born Citius - Claude Bridge
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Born-Citius/services/claude-bridge
+EnvironmentFile=%h/Born-Citius/services/claude-bridge/.env
+ExecStart=/usr/bin/env node server.mjs
+Restart=on-failure
+RestartSec=5
+# Pengetatan dasar: bridge hanya perlu membaca berkas, bukan mengubah sistem.
+NoNewPrivileges=true
+PrivateTmp=false
+ProtectSystem=strict
+ReadWritePaths=%h/.claude /tmp/born-citius-ai
+
+[Install]
+WantedBy=default.target

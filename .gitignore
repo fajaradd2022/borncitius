@@ -1,0 +1,16 @@
+node_modules/
+.next/
+.turbo/
+dist/
+.env
+.env.local
+*.log
+.DS_Store
+
+.storage/
+.env
+.env.prod
+.seed-password.txt
+.pnpm-store/
+.claude/
+testsprite_tests/tmp/

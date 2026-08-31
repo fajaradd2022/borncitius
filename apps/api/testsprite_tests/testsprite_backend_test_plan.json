@@ -1,0 +1,52 @@
+[
+  {
+    "id": "TC001",
+    "title": "post api auth login with valid and invalid credentials",
+    "description": "Test POST /api/auth/login endpoint with valid email, password, and optional deviceId to receive accessToken, refreshToken, and user. Also test with invalid credentials to receive 401 Invalid credentials."
+  },
+  {
+    "id": "TC002",
+    "title": "post api auth refresh with valid and invalid refresh tokens",
+    "description": "Test POST /api/auth/refresh endpoint by exchanging a valid refreshToken for new accessToken and refreshToken. Also test with expired or invalid refreshToken to receive 401 error."
+  },
+  {
+    "id": "TC003",
+    "title": "post api auth logout revokes device session",
+    "description": "Test POST /api/auth/logout with a valid refreshToken to revoke the device session and receive 204 No content."
+  },
+  {
+    "id": "TC004",
+    "title": "get api auth me returns authenticated user profile",
+    "description": "Test GET /api/auth/me with a valid access token to receive 200 with the authenticated user profile."
+  },
+  {
+    "id": "TC005",
+    "title": "get api dashboard summary returns role scoped task counts and overdue tasks",
+    "description": "Test GET /api/dashboard/summary with valid access token to receive 200 with statusCounts, perFolder, and overdue task list scoped to the requester role. Also test without authentication to receive 401 unauthorized."
+  },
+  {
+    "id": "TC006",
+    "title": "get api folders list and get folder details with spv scoping",
+    "description": "Test GET /api/folders with valid access token to receive folder list including defaultReviewer and task count. Test GET /api/folders/:id with folder UUID within SPV scope to receive 200 with folder details, outside scope to receive 403, and non-existent UUID to receive 404."
+  },
+  {
+    "id": "TC007",
+    "title": "post api templates create and put api templates update with admin authorization",
+    "description": "Test POST /api/templates with admin credentials and valid data to create a new template. Test with non-admin credentials to receive 403. Test PUT /api/templates/:id with admin credentials to update template and fields, including rejection when removing fields referenced by layout blocks (400 error)."
+  },
+  {
+    "id": "TC008",
+    "title": "post api tasks create task instance with admin spv authorization",
+    "description": "Test POST /api/tasks with admin or SPV credentials and valid folderId, templateId, assignedTeknisiId, and dueDate to create a task instance. Test with non-admin/SPV credentials to receive 403."
+  },
+  {
+    "id": "TC009",
+    "title": "post api tasks taskid fields fieldid attachments upload and get attachment status",
+    "description": "Test POST /api/tasks/:taskId/fields/:fieldId/attachments with multipart file data (valid and invalid size/type) to upload attachment. Test GET /api/tasks/attachments/:attachmentId/status to get Drive mirror sync status."
+  },
+  {
+    "id": "TC010",
+    "title": "post api tasks taskid document generate and get pdf download",
+    "description": "Test POST /api/tasks/:taskId/document for approved task with admin or assigned SPV reviewer to generate document metadata. Test GET /api/tasks/:taskId/document/pdf to download generated PDF. Test error cases for unauthorized access and missing document."
+  }
+]

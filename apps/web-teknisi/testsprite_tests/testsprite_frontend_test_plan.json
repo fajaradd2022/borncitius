@@ -1,0 +1,1060 @@
+[
+  {
+    "id": "TC001",
+    "title": "Sign in and reach the task list",
+    "description": "This test verifies that a technician can sign in with valid credentials and arrive at the assigned task list.",
+    "category": "Login",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task list is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify assigned tasks are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC002",
+    "title": "Submit a completed task successfully",
+    "description": "This verifies that a technician can complete a task and submit it successfully, returning to the active task list without the task remaining there.",
+    "category": "Task Submission",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the first assigned task"
+      },
+      {
+        "type": "action",
+        "description": "Fill a valid value into the required fields on the task form"
+      },
+      {
+        "type": "action",
+        "description": "Submit the task form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user returns to the task list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the submitted task no longer appears in the active task list"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC003",
+    "title": "Submit a completed task and remove it from active work",
+    "description": "This test verifies that a technician can complete a task submission successfully and the task disappears from the active task list afterward.",
+    "category": "Task List",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click a task row"
+      },
+      {
+        "type": "action",
+        "description": "Complete the required task fields"
+      },
+      {
+        "type": "action",
+        "description": "Submit the task"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task list is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the submitted task is no longer listed among active work"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC004",
+    "title": "Autosave text and date fields in a task",
+    "description": "This test verifies that a technician can enter form data in a task and the changes are preserved by offline-first autosave.",
+    "category": "Task List",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click a task row"
+      },
+      {
+        "type": "action",
+        "description": "Fill in a text field with a unique task note"
+      },
+      {
+        "type": "action",
+        "description": "Fill in a valid date field"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the entered task note is preserved"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the date value is preserved"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC005",
+    "title": "Complete task fields and save progress",
+    "description": "This verifies that a technician can fill core task fields and have the entered values saved on the task form.",
+    "category": "Task Form Field Entry",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the technician login credentials with {{LOGIN_USER}} and {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open an assigned task from the task list"
+      },
+      {
+        "type": "action",
+        "description": "Fill in a text field with a unique value"
+      },
+      {
+        "type": "action",
+        "description": "Fill in a number field with a valid value"
+      },
+      {
+        "type": "action",
+        "description": "Fill in a date field with a valid date"
+      },
+      {
+        "type": "action",
+        "description": "Fill in a textarea field with a short note"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the entered field values are saved on the task form"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC006",
+    "title": "See offline queue status while editing a task",
+    "description": "This verifies that a technician can make task edits while offline and see the changes remain queued instead of failing.",
+    "category": "Offline Queue & Background Sync",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the first assigned task"
+      },
+      {
+        "type": "action",
+        "description": "Go offline"
+      },
+      {
+        "type": "action",
+        "description": "Fill a valid value into a text field on the task form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task form shows a pending sync state"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the edited value remains present on the form"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC007",
+    "title": "Capture photo evidence with watermark metadata",
+    "description": "This test verifies that a technician can capture a photo in a task and the saved evidence shows watermark attribution metadata.",
+    "category": "Task List",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click a task row"
+      },
+      {
+        "type": "action",
+        "description": "Capture a photo evidence item"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the photo evidence is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify watermark metadata is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC008",
+    "title": "Capture a camera photo with watermark",
+    "description": "This verifies that a technician can take a photo with the camera and add a watermarked attachment to the task.",
+    "category": "Photo Capture with Watermark",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the technician login credentials with {{LOGIN_USER}} and {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open an assigned task from the task list"
+      },
+      {
+        "type": "action",
+        "description": "Capture a photo from the camera for the task"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the photo attachment is added with watermark metadata"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC009",
+    "title": "Drain queued task edits after reconnecting",
+    "description": "This verifies that queued task edits automatically synchronize when connectivity returns and the sync status clears.",
+    "category": "Offline Queue & Background Sync",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the first assigned task"
+      },
+      {
+        "type": "action",
+        "description": "Go offline"
+      },
+      {
+        "type": "action",
+        "description": "Fill a valid value into a text field on the task form"
+      },
+      {
+        "type": "action",
+        "description": "Go online"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the sync indicator shows that items have been synchronized"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task form still shows the saved field value"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC010",
+    "title": "Browse assigned tasks and open one",
+    "description": "This test verifies that a signed-in technician can see assigned work on the task list and open a task form.",
+    "category": "Task List",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click a task row"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task form is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify task details are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC011",
+    "title": "Add a supporting document to a task",
+    "description": "This test verifies that a technician can attach a supporting document to a task and see it listed as saved evidence.",
+    "category": "Task List",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click a task row"
+      },
+      {
+        "type": "action",
+        "description": "Add a supporting document"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the document attachment is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task shows saved supporting evidence"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC012",
+    "title": "Capture a location when GPS is available",
+    "description": "This verifies that a technician can capture a GPS location on a task and save the location value in the form.",
+    "category": "Task Form Field Entry",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the technician login credentials with {{LOGIN_USER}} and {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open an assigned task from the task list"
+      },
+      {
+        "type": "action",
+        "description": "Capture the current location for the GPS field"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a GPS value is saved in the task form"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC013",
+    "title": "Show pending sync count on the task list",
+    "description": "This verifies that the task list reflects queued work with a visible pending sync indicator after offline edits.",
+    "category": "Offline Queue & Background Sync",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the first assigned task"
+      },
+      {
+        "type": "action",
+        "description": "Go offline"
+      },
+      {
+        "type": "action",
+        "description": "Fill a valid value into a text field on the task form"
+      },
+      {
+        "type": "action",
+        "description": "Click the link to return to the task list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task list shows a pending sync indicator"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task list still shows assigned tasks"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC014",
+    "title": "Upload a scanned document to a task",
+    "description": "This verifies that a technician can upload a scanned document and see it attached to the task.",
+    "category": "Document Upload",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the technician login credentials with {{LOGIN_USER}} and {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open an assigned task from the task list"
+      },
+      {
+        "type": "action",
+        "description": "Upload a scanned document for the task"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the document attachment is added to the task"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC015",
+    "title": "Use the sync indicator to drain pending changes",
+    "description": "This test verifies that a technician can trigger synchronization from the task list and see pending items clear when sync is available.",
+    "category": "Task List",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open a task and make a change that creates a pending item"
+      },
+      {
+        "type": "action",
+        "description": "Return to the task list"
+      },
+      {
+        "type": "action",
+        "description": "Click the sync indicator"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the sync indicator reflects no pending items"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the pending change is no longer shown as queued"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC016",
+    "title": "Return to the sign-in screen after logout",
+    "description": "This test verifies that a signed-in technician can end the session from the task list and return to the sign-in screen.",
+    "category": "Logout",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the logout control"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the sign-in screen is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task list is not displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC017",
+    "title": "Attach a gallery photo to a task",
+    "description": "This verifies that a technician can select an existing gallery image and attach it to the task.",
+    "category": "Photo Capture with Watermark",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the technician login credentials with {{LOGIN_USER}} and {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open an assigned task from the task list"
+      },
+      {
+        "type": "action",
+        "description": "Choose an existing photo from the gallery"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the photo attachment is added to the task"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC018",
+    "title": "Keep a task available after submit waits for queued sync",
+    "description": "This verifies that submission is blocked until queued changes are sent and the user remains on the form if syncing is still pending.",
+    "category": "Task Submission",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the first assigned task"
+      },
+      {
+        "type": "action",
+        "description": "Go offline"
+      },
+      {
+        "type": "action",
+        "description": "Fill a valid value into a text field on the task form"
+      },
+      {
+        "type": "action",
+        "description": "Submit the task form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an error notification is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task form remains open"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC019",
+    "title": "Keep field edits when reconnecting after an offline session",
+    "description": "This verifies that a technician can continue editing a task offline, reconnect, and still see the entered values preserved for later submission.",
+    "category": "Offline Queue & Background Sync",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the first assigned task"
+      },
+      {
+        "type": "action",
+        "description": "Go offline"
+      },
+      {
+        "type": "action",
+        "description": "Fill a valid value into a date field on the task form"
+      },
+      {
+        "type": "action",
+        "description": "Fill a valid value into a number field on the task form"
+      },
+      {
+        "type": "action",
+        "description": "Go online"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the entered field values are still present"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the sync indicator shows a healthy synchronized state"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC020",
+    "title": "Reject invalid sign in credentials",
+    "description": "This test verifies that signing in with invalid credentials shows an inline error and does not enter the app.",
+    "category": "Login",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with invalid@example.com"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with invalid-password"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an inline login error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task list is not displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC021",
+    "title": "Open an uploaded document attachment",
+    "description": "This verifies that a technician can open an attached document and view it from the task.",
+    "category": "Document Upload",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the technician login credentials with {{LOGIN_USER}} and {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open an assigned task from the task list"
+      },
+      {
+        "type": "action",
+        "description": "Upload a scanned document for the task"
+      },
+      {
+        "type": "action",
+        "description": "Open the uploaded document attachment"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the uploaded document is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC022",
+    "title": "Show a fallback when GPS access is denied",
+    "description": "This verifies that a technician can still save a fallback location value when GPS access is unavailable or denied.",
+    "category": "Task Form Field Entry",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the technician login credentials with {{LOGIN_USER}} and {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open an assigned task from the task list"
+      },
+      {
+        "type": "action",
+        "description": "Deny location access when prompted for GPS capture"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a fallback GPS value is saved in the task form"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC023",
+    "title": "Open a task page that was previously cached while offline",
+    "description": "This verifies that a technician can reopen a previously visited task page offline and continue working instead of falling back to the offline page.",
+    "category": "Offline Fallback Page",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the first assigned task"
+      },
+      {
+        "type": "action",
+        "description": "Go back to the task list"
+      },
+      {
+        "type": "action",
+        "description": "Go offline"
+      },
+      {
+        "type": "action",
+        "description": "Click the first assigned task again"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task form opens successfully"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the offline reassurance page is not shown"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC024",
+    "title": "Remove a photo attachment from a task",
+    "description": "This verifies that a technician can delete an existing photo attachment and see it removed from the task.",
+    "category": "Photo Capture with Watermark",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the technician login credentials with {{LOGIN_USER}} and {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open an assigned task from the task list"
+      },
+      {
+        "type": "action",
+        "description": "Capture or choose a photo attachment for the task"
+      },
+      {
+        "type": "action",
+        "description": "Delete the photo attachment"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the photo attachment is removed from the task"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC025",
+    "title": "Remove a document attachment from a task",
+    "description": "This verifies that a technician can delete an uploaded document and see it removed from the task.",
+    "category": "Document Upload",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the technician login credentials with {{LOGIN_USER}} and {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open an assigned task from the task list"
+      },
+      {
+        "type": "action",
+        "description": "Upload a scanned document for the task"
+      },
+      {
+        "type": "action",
+        "description": "Delete the uploaded document attachment"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the document attachment is removed from the task"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC026",
+    "title": "Show the offline fallback for an uncached task page",
+    "description": "This verifies that opening a task page that was never cached while offline shows the offline reassurance page.",
+    "category": "Offline Fallback Page",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /masuk"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Go offline"
+      },
+      {
+        "type": "action",
+        "description": "Click the first assigned task"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the offline reassurance page is shown"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the task form is not shown"
+      }
+    ],
+    "priority": "Low"
+  }
+]
