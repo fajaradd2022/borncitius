@@ -85,10 +85,51 @@ class DocumentsController {
     });
     const labelById = new Map(templateFields.map((f) => [f.id, f.label]));
 
+    // Resolusi placeholder {{Label}} pada teks (mis. header foto memakai
+    // {{Site ID}} / {{Site Name}}). Nilai diambil dari isian task (per label);
+    // jika tidak ada, placeholder dikosongkan agar tidak muncul mentah.
+    const resolvePlaceholders = (input: unknown): string => {
+      if (typeof input !== 'string') return '';
+      return input.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_m, name: string) => {
+        const f = byLabel.get(name.trim());
+        return typeof f?.value === 'string' ? f.value : '';
+      });
+    };
+
+    // Config bisa mengandung placeholder di beberapa tempat (caption, footerNote,
+    // pageHeader.leftText/rightText). Kita resolusi secara rekursif dangkal.
+    const resolveConfig = (cfg: Record<string, unknown>): Record<string, unknown> => {
+      const out: Record<string, unknown> = { ...cfg };
+      for (const key of ['caption', 'footerNote', 'content', 'noteText']) {
+        if (typeof out[key] === 'string') out[key] = resolvePlaceholders(out[key]);
+      }
+      if (out.pageHeader && typeof out.pageHeader === 'object') {
+        const ph = out.pageHeader as Record<string, unknown>;
+        out.pageHeader = {
+          ...ph,
+          leftText: resolvePlaceholders(ph.leftText),
+          rightText: resolvePlaceholders(ph.rightText),
+        };
+      }
+      return out;
+    };
+
     const blocks: RenderBlock[] = layout.blocks.map((b) => {
       const label = b.sourceFieldId ? labelById.get(b.sourceFieldId) : undefined;
       const field = label ? byLabel.get(label) : undefined;
-      const cfg = (b.config ?? {}) as Record<string, unknown>;
+      const rawCfg = (b.config ?? {}) as Record<string, unknown>;
+      const cfg = resolveConfig(rawCfg);
+
+      // field_grid: kumpulkan nilai tiap field yang dirujuk (via label template).
+      let gridValues: Array<{ label: string; value: string }> | undefined;
+      const fieldIds = Array.isArray(rawCfg.fieldIds) ? (rawCfg.fieldIds as string[]) : [];
+      if (b.type === 'field_grid' && fieldIds.length > 0) {
+        gridValues = fieldIds.map((fid) => {
+          const lbl = labelById.get(fid) ?? '';
+          const fv = lbl ? byLabel.get(lbl) : undefined;
+          return { label: lbl, value: typeof fv?.value === 'string' ? fv.value : '' };
+        });
+      }
 
       return {
         type: b.type,
@@ -96,8 +137,11 @@ class DocumentsController {
         orderIndex: b.orderIndex,
         displayStyle: b.displayStyle,
         config: cfg,
+        textStyle: (b.textStyle ?? null) as RenderBlock['textStyle'],
+        border: (b.border ?? null) as RenderBlock['border'],
         value: typeof field?.value === 'string' ? field.value : null,
         caption: typeof cfg.caption === 'string' ? cfg.caption : undefined,
+        gridValues,
         attachments: field?.attachments.map((a) => ({
           absolutePath: this.storage.absolutePathFor(a.storagePath),
           mimeType: a.mimeType,
