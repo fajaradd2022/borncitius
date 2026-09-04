@@ -81,7 +81,7 @@ class DocumentsController {
     const byLabel = new Map(task.fields.map((f) => [f.label, f]));
     const templateFields = await this.prisma.templateField.findMany({
       where: { templateId: task.templateId },
-      select: { id: true, label: true },
+      select: { id: true, label: true, fieldType: true },
     });
     const labelById = new Map(templateFields.map((f) => [f.id, f.label]));
 
@@ -148,6 +148,42 @@ class DocumentsController {
         })),
       };
     });
+
+    // Fallback lampiran: field bertipe `file` (mis. "BAST") yang punya lampiran
+    // tetapi TIDAK direferensikan oleh blok attachment manapun di layout, tetap
+    // digabungkan ke dokumen agar tidak hilang. Ini mencegah kasus layout lupa
+    // menaruh blok attachment untuk BAST TTD. Lampiran ditaruh di akhir (setelah
+    // footer bila ada) mengikuti urutan field.
+    const referencedLabels = new Set(
+      layout.blocks
+        .filter((b) => b.type === 'attachment' && b.sourceFieldId)
+        .map((b) => labelById.get(b.sourceFieldId as string))
+        .filter((l): l is string => Boolean(l)),
+    );
+    const fileFieldLabels = new Set(
+      templateFields.filter((f) => f.fieldType === 'file').map((f) => f.label),
+    );
+    const maxOrder = blocks.reduce((m, b) => Math.max(m, b.orderIndex), 0);
+    let extra = 1;
+    for (const tf of task.fields) {
+      if (!fileFieldLabels.has(tf.label)) continue; // hanya field tipe file
+      if (referencedLabels.has(tf.label)) continue; // sudah ada blok attachment
+      if (!tf.attachments.length) continue; // tidak ada berkas
+      blocks.push({
+        type: 'attachment',
+        label: tf.label,
+        orderIndex: maxOrder + extra++,
+        displayStyle: null,
+        config: {},
+        textStyle: null,
+        border: null,
+        value: null,
+        attachments: tf.attachments.map((a) => ({
+          absolutePath: this.storage.absolutePathFor(a.storagePath),
+          mimeType: a.mimeType,
+        })),
+      });
+    }
 
     const siteId = task.siteId ?? task.id.slice(0, 8);
     return {

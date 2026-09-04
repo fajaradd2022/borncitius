@@ -130,6 +130,18 @@ export class PdfService {
     const write = (text: string, size: number, f: PDFFont, gap = 6): void =>
       writeStyled(text, { size, f, gap });
 
+    // Halaman dianggap "fresh" bila belum ada yang digambar (y masih di atas).
+    // Dipakai agar page_break dan photo_page tidak menambah halaman kosong
+    // ketika halaman aktif memang masih kosong (mis. page_break tepat sebelum
+    // photo_page — keduanya ingin memulai halaman baru, cukup satu).
+    const pageIsFresh = (): boolean => y === A4.height - MARGIN;
+    const startFreshPage = (): void => {
+      if (!pageIsFresh()) {
+        page = doc.addPage([A4.width, A4.height]);
+        y = A4.height - MARGIN;
+      }
+    };
+
     const sorted = [...blocks].sort((a, b) => a.orderIndex - b.orderIndex);
 
     for (const block of sorted) {
@@ -293,9 +305,10 @@ export class PdfService {
 
         case 'photo_page': {
           const photo = block.attachments?.[0];
-          // Setiap halaman foto adalah halaman sendiri (PRD 4.2).
-          page = doc.addPage([A4.width, A4.height]);
-          y = A4.height - MARGIN;
+          // Setiap halaman foto dimulai di halaman sendiri — tapi jika halaman
+          // aktif masih kosong (mis. tepat setelah page_break), pakai halaman
+          // itu agar tidak muncul halaman kosong.
+          startFreshPage();
 
           const caption = block.caption ?? block.label;
           const cfg = block.config ?? {};
@@ -379,8 +392,10 @@ export class PdfService {
         }
 
         case 'page_break':
-          page = doc.addPage([A4.width, A4.height]);
-          y = A4.height - MARGIN;
+          // Mulai halaman baru hanya bila halaman aktif sudah terisi, agar
+          // page_break yang berdampingan dengan photo_page tidak menghasilkan
+          // halaman kosong.
+          startFreshPage();
           break;
 
         case 'footer': {
