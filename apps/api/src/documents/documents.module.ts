@@ -81,7 +81,8 @@ class DocumentsController {
     const byLabel = new Map(task.fields.map((f) => [f.label, f]));
     const templateFields = await this.prisma.templateField.findMany({
       where: { templateId: task.templateId },
-      select: { id: true, label: true, fieldType: true },
+      orderBy: { orderIndex: 'asc' },
+      select: { id: true, label: true, fieldType: true, orderIndex: true },
     });
     const labelById = new Map(templateFields.map((f) => [f.id, f.label]));
 
@@ -151,28 +152,46 @@ class DocumentsController {
 
     // Fallback lampiran: field bertipe `file` (mis. "BAST") yang punya lampiran
     // tetapi TIDAK direferensikan oleh blok attachment manapun di layout, tetap
-    // digabungkan ke dokumen agar tidak hilang. Ini mencegah kasus layout lupa
-    // menaruh blok attachment untuk BAST TTD. Lampiran ditaruh di akhir (setelah
-    // footer bila ada) mengikuti urutan field.
+    // digabungkan ke dokumen agar tidak hilang. Lampiran disisipkan di POSISI
+    // field-nya (bukan selalu di akhir): berdasarkan urutan field template,
+    // disisipkan tepat sebelum blok pertama yang merujuk field ber-urutan lebih
+    // besar. Contoh: BAST (field pertama) muncul di awal dokumen.
     const referencedLabels = new Set(
       layout.blocks
         .filter((b) => b.type === 'attachment' && b.sourceFieldId)
         .map((b) => labelById.get(b.sourceFieldId as string))
         .filter((l): l is string => Boolean(l)),
     );
+    const templateOrderByLabel = new Map(
+      templateFields.map((f) => [f.label, f.orderIndex]),
+    );
     const fileFieldLabels = new Set(
       templateFields.filter((f) => f.fieldType === 'file').map((f) => f.label),
     );
+    // Untuk tiap blok layout, cari urutan field template yang dirujuknya (jika ada).
+    const blockFieldOrder = (b: (typeof layout.blocks)[number]): number | undefined => {
+      const lbl = b.sourceFieldId ? labelById.get(b.sourceFieldId) : undefined;
+      return lbl ? templateOrderByLabel.get(lbl) : undefined;
+    };
     const maxOrder = blocks.reduce((m, b) => Math.max(m, b.orderIndex), 0);
-    let extra = 1;
     for (const tf of task.fields) {
       if (!fileFieldLabels.has(tf.label)) continue; // hanya field tipe file
       if (referencedLabels.has(tf.label)) continue; // sudah ada blok attachment
       if (!tf.attachments.length) continue; // tidak ada berkas
+      const myOrder = templateOrderByLabel.get(tf.label) ?? 0;
+      // Blok layout pertama yang merujuk field dengan urutan template > myOrder.
+      const laterBlocks = layout.blocks
+        .filter((b) => {
+          const o = blockFieldOrder(b);
+          return o !== undefined && o > myOrder;
+        })
+        .map((b) => b.orderIndex);
+      const insertAt =
+        laterBlocks.length > 0 ? Math.min(...laterBlocks) - 0.5 : maxOrder + 1;
       blocks.push({
         type: 'attachment',
         label: tf.label,
-        orderIndex: maxOrder + extra++,
+        orderIndex: insertAt,
         displayStyle: null,
         config: {},
         textStyle: null,
@@ -203,16 +222,9 @@ class DocumentsController {
   async generate(@CurrentUser() user: AuthUser, @Param('taskId', ParseUUIDPipe) taskId: string) {
     const { blocks, ctx, layoutId, siteId, folderName } = await this.buildBlocks(user, taskId);
 
-    const generated = await this.pdf.render(blocks, ctx);
-
-    // Lampiran di depan bila blok attachment muncul sebelum blok yang di-generate.
-    const firstGenerated = blocks.find((b) => b.type !== 'attachment');
-    const firstAttachment = blocks.find((b) => b.type === 'attachment');
-    const attachmentBefore =
-      firstAttachment !== undefined &&
-      (firstGenerated === undefined || firstAttachment.orderIndex < firstGenerated.orderIndex);
-
-    const merged = await this.pdf.assemble(generated, blocks, attachmentBefore);
+    // compose() menyisipkan lampiran di posisi urutan bloknya (interleaved) dan
+    // menormalkan tiap halaman lampiran ke A4 (preserve aspect, tanpa stretch).
+    const merged = await this.pdf.compose(blocks, ctx);
 
     const relPath = join('documents', folderName, `${siteId}-${Date.now()}.pdf`);
     const absPath = join(this.config.getOrThrow<string>('STORAGE_ROOT'), relPath);

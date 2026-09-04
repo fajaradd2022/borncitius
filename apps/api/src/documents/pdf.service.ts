@@ -62,7 +62,11 @@ export interface RenderContext {
 export class PdfService {
   private readonly logger = new Logger(PdfService.name);
 
-  async render(blocks: RenderBlock[], ctx: RenderContext): Promise<Buffer> {
+  async render(
+    blocks: RenderBlock[],
+    ctx: RenderContext,
+    opts: { stampPageNumbers?: boolean } = {},
+  ): Promise<Buffer> {
     const doc = await PDFDocument.create();
     doc.setTitle(ctx.title);
     doc.setCreator('Born Citius');
@@ -424,11 +428,12 @@ export class PdfService {
     }
 
     // Stamping nomor halaman: bila ada blok footer dengan showPageNumber,
-    // tulis "n / total" di kanan-bawah tiap halaman generate. Placeholder
-    // {n}/{total} pada footerNote juga diganti bila ada.
+    // tulis "n / total" di kanan-bawah tiap halaman. Saat dipanggil dari
+    // compose(), stamping ini dilewati dan dilakukan sekali untuk seluruh
+    // dokumen gabungan (agar total & nomor benar lintas segmen + lampiran).
     const footerBlock = blocks.find((b) => b.type === 'footer');
     const footerCfg = (footerBlock?.config ?? {}) as Record<string, unknown>;
-    if (footerBlock && footerCfg.showPageNumber) {
+    if (opts.stampPageNumbers !== false && footerBlock && footerCfg.showPageNumber) {
       const pages = doc.getPages();
       const total = pages.length;
       pages.forEach((p, i) => {
@@ -455,64 +460,135 @@ export class PdfService {
   }
 
   /**
-   * Menggabungkan halaman hasil generate dengan halaman lampiran, sesuai urutan
-   * blok. Lampiran berupa PDF disalin apa adanya; gambar dijadikan satu halaman.
+   * Menyusun dokumen final dengan MENYISIPKAN lampiran tepat di posisi urutan
+   * bloknya (interleaved), bukan hanya di depan/belakang. Contoh: bila blok
+   * attachment "BAST" ada di awal layout, halaman BAST muncul di awal; bila di
+   * tengah, muncul di tengah.
+   *
+   * Cara kerja: blok non-lampiran dikelompokkan menjadi "segmen" yang di-render
+   * jadi PDF, dan tiap blok attachment menjadi satu unit lampiran. Semua unit
+   * (segmen + lampiran) diurutkan berdasarkan orderIndex, lalu digabung.
+   *
+   * Setiap halaman lampiran (PDF hasil scan / gambar) dinormalisasi ke ukuran
+   * A4: kontennya diletakkan utuh (preserve aspect ratio, TIDAK di-stretch /
+   * TIDAK dipotong) dan di-tengah-kan pada kanvas A4 putih.
    */
-  async assemble(
-    generated: Buffer,
-    blocks: RenderBlock[],
-    attachmentBefore: boolean,
-  ): Promise<Buffer> {
-    const attachmentBlocks = blocks
-      .filter((b) => b.type === 'attachment')
-      .sort((a, b) => a.orderIndex - b.orderIndex);
+  async compose(blocks: RenderBlock[], ctx: RenderContext): Promise<Buffer> {
+    const sorted = [...blocks].sort((a, b) => a.orderIndex - b.orderIndex);
 
-    if (attachmentBlocks.length === 0) return generated;
-
-    const out = await PDFDocument.create();
-    const generatedDoc = await PDFDocument.load(generated);
-
-    const appendAttachments = async (): Promise<void> => {
-      for (const block of attachmentBlocks) {
-        for (const file of block.attachments ?? []) {
-          try {
-            if (file.mimeType === 'application/pdf') {
-              const src = await PDFDocument.load(await readFile(file.absolutePath));
-              const pages = await out.copyPages(src, src.getPageIndices());
-              pages.forEach((p) => out.addPage(p));
-            } else {
-              const img = await this.embedImage(out, file);
-              if (!img) continue;
-              const p = out.addPage([A4.width, A4.height]);
-              const scale = Math.min(
-                (A4.width - MARGIN) / img.width,
-                (A4.height - MARGIN) / img.height,
-              );
-              const w = img.width * scale;
-              const h = img.height * scale;
-              p.drawImage(img, { x: (A4.width - w) / 2, y: (A4.height - h) / 2, width: w, height: h });
-            }
-          } catch (err) {
-            this.logger.warn(`Lampiran dilewati (${file.absolutePath}): ${String(err)}`);
-          }
-        }
+    // Bangun daftar unit sesuai urutan: segmen render + lampiran.
+    type Unit =
+      | { kind: 'render'; blocks: RenderBlock[] }
+      | { kind: 'attach'; block: RenderBlock };
+    const units: Unit[] = [];
+    let currentSegment: RenderBlock[] = [];
+    const flush = () => {
+      if (currentSegment.length > 0) {
+        units.push({ kind: 'render', blocks: currentSegment });
+        currentSegment = [];
       }
     };
+    for (const b of sorted) {
+      if (b.type === 'attachment') {
+        // Buang page_break di ekor segmen: page_break tepat sebelum lampiran
+        // hanya akan menghasilkan halaman kosong (lampiran memulai halaman
+        // A4 sendiri). Ini mencegah blank page di batas segmen↔lampiran.
+        while (currentSegment.length > 0 && currentSegment[currentSegment.length - 1].type === 'page_break') {
+          currentSegment.pop();
+        }
+        flush();
+        units.push({ kind: 'attach', block: b });
+      } else {
+        currentSegment.push(b);
+      }
+    }
+    flush();
 
-    const copyGenerated = async (): Promise<void> => {
-      const pages = await out.copyPages(generatedDoc, generatedDoc.getPageIndices());
-      pages.forEach((p) => out.addPage(p));
-    };
+    const out = await PDFDocument.create();
+    out.setTitle(ctx.title);
+    out.setCreator('Born Citius');
 
-    if (attachmentBefore) {
-      await appendAttachments();
-      await copyGenerated();
-    } else {
-      await copyGenerated();
-      await appendAttachments();
+    for (const unit of units) {
+      if (unit.kind === 'render') {
+        // Render segmen ini (tanpa stamping nomor halaman — dilakukan di akhir).
+        const segPdf = await this.render(unit.blocks, ctx, { stampPageNumbers: false });
+        const segDoc = await PDFDocument.load(segPdf);
+        const pages = await out.copyPages(segDoc, segDoc.getPageIndices());
+        pages.forEach((p) => out.addPage(p));
+      } else {
+        await this.appendAttachmentA4(out, unit.block);
+      }
+    }
+
+    // Stamping nomor halaman untuk SELURUH dokumen bila footer memintanya.
+    const footerBlock = blocks.find((b) => b.type === 'footer');
+    const footerCfg = (footerBlock?.config ?? {}) as Record<string, unknown>;
+    if (footerBlock && footerCfg.showPageNumber) {
+      const font = await out.embedFont(StandardFonts.Helvetica);
+      const pages = out.getPages();
+      const total = pages.length;
+      pages.forEach((p, i) => {
+        const label = `${i + 1} / ${total}`;
+        const w = font.widthOfTextAtSize(label, 8);
+        p.drawText(label, {
+          x: A4.width - MARGIN - w,
+          y: MARGIN - 14,
+          size: 8,
+          font,
+          color: rgb(0.45, 0.45, 0.45),
+        });
+      });
     }
 
     return Buffer.from(await out.save());
+  }
+
+  /**
+   * Menambahkan lampiran (semua berkas pada satu blok attachment) ke dokumen,
+   * dengan menormalkan setiap halaman ke A4 preserve-aspect (tanpa stretch).
+   */
+  private async appendAttachmentA4(out: PDFDocument, block: RenderBlock): Promise<void> {
+    for (const file of block.attachments ?? []) {
+      try {
+        if (file.mimeType === 'application/pdf') {
+          const src = await PDFDocument.load(await readFile(file.absolutePath));
+          const indices = src.getPageIndices();
+          // Embed tiap halaman sumber sebagai objek, lalu gambar utuh ke A4.
+          const embeddedPages = await out.embedPdf(src, indices);
+          for (const ep of embeddedPages) {
+            const a4 = out.addPage([A4.width, A4.height]);
+            const { width: sw, height: sh } = ep;
+            // Skala agar muat penuh dalam A4 (dengan margin kecil), preserve ratio.
+            const pad = 8; // sisakan sedikit tepi agar tidak menempel pinggir
+            const scale = Math.min((A4.width - pad * 2) / sw, (A4.height - pad * 2) / sh);
+            const w = sw * scale;
+            const h = sh * scale;
+            a4.drawPage(ep, {
+              x: (A4.width - w) / 2,
+              y: (A4.height - h) / 2,
+              width: w,
+              height: h,
+            });
+          }
+        } else {
+          const img = await this.embedImage(out, file);
+          if (!img) continue;
+          const a4 = out.addPage([A4.width, A4.height]);
+          const pad = 8;
+          const scale = Math.min((A4.width - pad * 2) / img.width, (A4.height - pad * 2) / img.height);
+          const w = img.width * scale;
+          const h = img.height * scale;
+          a4.drawImage(img, {
+            x: (A4.width - w) / 2,
+            y: (A4.height - h) / 2,
+            width: w,
+            height: h,
+          });
+        }
+      } catch (err) {
+        this.logger.warn(`Lampiran dilewati (${file.absolutePath}): ${String(err)}`);
+      }
+    }
   }
 }
 
