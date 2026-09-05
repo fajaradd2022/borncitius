@@ -82,7 +82,7 @@ class DocumentsController {
     const templateFields = await this.prisma.templateField.findMany({
       where: { templateId: task.templateId },
       orderBy: { orderIndex: 'asc' },
-      select: { id: true, label: true, fieldType: true, orderIndex: true },
+      select: { id: true, label: true, fieldType: true, orderIndex: true, options: true },
     });
     const labelById = new Map(templateFields.map((f) => [f.id, f.label]));
 
@@ -202,6 +202,60 @@ class DocumentsController {
           mimeType: a.mimeType,
         })),
       });
+    }
+
+    // ---- TEST-CALL 5G: sintesis blok khusus dari field repeat_table ----
+    // Bila template punya field repeat_table (mis. "Data Test Call") dan layout
+    // belum menyusun blok manual, bangun otomatis: tabel TEST INFORMATION +
+    // TEST RESULTS + grid foto 3-kolom per sektor. Ini meniru dokumen customer.
+    const repeatField = task.fields.find(
+      (f) => templateFields.find((t) => t.label === f.label)?.fieldType === 'repeat_table',
+    );
+    const hasCustomBlocks = layout.blocks.some(
+      (b) => b.type !== 'header' && b.type !== 'footer',
+    );
+    if (repeatField && !hasCustomBlocks) {
+      const tf = templateFields.find((t) => t.label === repeatField.label);
+      const opts = (tf?.options ?? {}) as Record<string, unknown>;
+      const columns = Array.isArray(opts.columns) ? (opts.columns as Array<Record<string, unknown>>) : [];
+      const remarkRules = Array.isArray(opts.remarkRules)
+        ? (opts.remarkRules as Array<{ scenario: string; minDl: number }>)
+        : [];
+      // value = array baris; fallback ke defaultRows bila belum diisi.
+      const rawVal = repeatField.value;
+      const rows = Array.isArray(rawVal)
+        ? (rawVal as Array<Record<string, unknown>>)
+        : Array.isArray(opts.defaultRows)
+          ? (opts.defaultRows as Array<Record<string, unknown>>)
+          : [];
+
+      const siteInfo = {
+        siteId: (byLabel.get('Site ID')?.value as string) ?? undefined,
+        siteName: (byLabel.get('Site Name')?.value as string) ?? undefined,
+      };
+
+      // Grid foto: setiap field photo (label diawali SCEN…) = satu unit sektor.
+      // Setiap unit punya hingga 3 foto (speedtest/youtube/location) dari
+      // attachments field tsb, sesuai urutan unggah.
+      const photoUnits = task.fields
+        .filter((f) => templateFields.find((t) => t.label === f.label)?.fieldType === 'photo')
+        .filter((f) => f.attachments.length > 0)
+        .map((f) => ({
+          title: f.label,
+          photos: [0, 1, 2].map((i) => {
+            const a = f.attachments[i];
+            return a
+              ? { absolutePath: this.storage.absolutePathFor(a.storagePath), mimeType: a.mimeType }
+              : null;
+          }),
+        }));
+
+      let ord = 1000;
+      blocks.push({ type: 'test_info_table', label: 'TEST INFORMATION', orderIndex: ord++, displayStyle: null, config: {}, tableData: { columns, rows, remarkRules }, siteInfo });
+      blocks.push({ type: 'test_result_table', label: 'TEST RESULTS', orderIndex: ord++, displayStyle: null, config: {}, tableData: { columns, rows, remarkRules }, siteInfo });
+      if (photoUnits.length > 0) {
+        blocks.push({ type: 'photo_grid_3', label: 'Dokumentasi Foto', orderIndex: ord++, displayStyle: null, config: {}, border: { outer: true, inner: true, width: 1, color: '#000000' }, photoGrid: photoUnits });
+      }
     }
 
     const siteId = task.siteId ?? task.id.slice(0, 8);

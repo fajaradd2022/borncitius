@@ -22,8 +22,11 @@ export interface TextStyle {
   color?: string;
 }
 
+/** Tipe blok sintetis (dibangun di buildBlocks, bukan di DB) untuk template khusus. */
+export type SyntheticBlockType = 'test_info_table' | 'test_result_table' | 'photo_grid_3';
+
 export interface RenderBlock {
-  type: LayoutBlockType;
+  type: LayoutBlockType | SyntheticBlockType;
   label: string;
   orderIndex: number;
   displayStyle: string | null;
@@ -43,6 +46,19 @@ export interface RenderBlock {
    * Diisi oleh buildBlocks agar renderer tidak perlu akses DB.
    */
   gridValues?: Array<{ label: string; value: string }>;
+  /**
+   * Data tabel untuk blok test-call (dari field repeat_table): baris + skema
+   * kolom. Diisi oleh buildBlocks dari value JSON field yang dirujuk.
+   */
+  tableData?: {
+    columns?: Array<Record<string, unknown>>;
+    rows?: Array<Record<string, unknown>>;
+    remarkRules?: Array<{ scenario: string; minDl: number }>;
+  };
+  /** Konteks site (Site ID / Site Name) untuk header blok test-call. */
+  siteInfo?: { siteId?: string; siteName?: string };
+  /** Grid foto per sektor (test-call): daftar unit {title, photos[3]}. */
+  photoGrid?: Array<{ title: string; photos: Array<{ absolutePath: string; mimeType: string } | null> }>;
 }
 
 export interface RenderContext {
@@ -484,6 +500,169 @@ export class PdfService {
           if (captionPos === 'below') drawCaption();
           if (notePos === 'below') drawNote();
           y -= 6;
+          break;
+        }
+
+        case 'test_info_table':
+        case 'test_result_table': {
+          const isResult = block.type === 'test_result_table';
+          const td = block.tableData ?? {};
+          const rows = Array.isArray(td.rows) ? td.rows : [];
+          const rules = td.remarkRules ?? [];
+          const site = block.siteInfo ?? {};
+
+          // Judul tabel + site info (di atas tabel pertama saja bila diinginkan).
+          const title = isResult ? 'TEST RESULTS' : 'TEST INFORMATION';
+          ensureSpace(40);
+          // Banner judul
+          page.drawRectangle({ x: MARGIN, y: y - 22, width: contentWidth, height: 22, color: rgb(0.09, 0.35, 0.55) });
+          const tw = bold.widthOfTextAtSize(title, 13);
+          page.drawText(title, { x: MARGIN + (contentWidth - tw) / 2, y: y - 16, size: 13, font: bold, color: rgb(1, 1, 1) });
+          y -= 22;
+
+          // Definisi kolom per jenis tabel (meniru contoh customer).
+          const infoCols = [
+            { key: 'scenario', header: 'Scenario', w: 13 },
+            { key: 'distance', header: 'Distance to BTS (mtr)', w: 13 },
+            { key: 'target', header: 'Target (Mbps)', w: 10 },
+            { key: 'sectorCell', header: 'Sector/Cell', w: 10 },
+            { key: 'position', header: 'Position', w: 11 },
+            { key: 'testLocationCategory', header: 'Test Location Category', w: 21 },
+            { key: 'latitude', header: 'Latitude', w: 11 },
+            { key: 'longitude', header: 'Longitude', w: 11 },
+          ];
+          const resultCols = [
+            { key: 'scenario', header: 'Scenario', w: 10 },
+            { key: 'distance', header: 'Distance (mtr)', w: 9 },
+            { key: 'target', header: 'Target', w: 7 },
+            { key: 'sectorCell', header: 'Sector/Cell', w: 8 },
+            { key: 'dlTput', header: 'DL Tput', w: 8 },
+            { key: 'ulTput', header: 'UL Tput', w: 8 },
+            { key: 'pci', header: 'PCI', w: 6 },
+            { key: 'rsrpIndoor', header: 'RSRP In', w: 7 },
+            { key: 'rsrpOutdoor', header: 'RSRP Out', w: 7 },
+            { key: 'sinr', header: 'SINR', w: 6 },
+            { key: 'rsrq', header: 'RSRQ', w: 6 },
+            { key: 'jitter', header: 'Jitter', w: 5 },
+            { key: 'latency', header: 'Latency', w: 6 },
+            { key: 'remark', header: 'Remark', w: 7 },
+          ];
+          const cols = isResult ? resultCols : infoCols;
+          const totalW = cols.reduce((s, c) => s + c.w, 0);
+          const colW = cols.map((c) => (c.w / totalW) * contentWidth);
+          const bClr = rgb(0.4, 0.4, 0.4);
+
+          const computeRemark = (row: Record<string, unknown>): string => {
+            const rule = rules.find((r) => r.scenario === row.scenario);
+            const dl = Number(row.dlTput);
+            if (!rule || !isFinite(dl) || row.dlTput === undefined || row.dlTput === '') return String(row.remark ?? '');
+            return dl >= rule.minDl ? 'Pass' : 'Fail';
+          };
+
+          const rowH = 15;
+          const headerH = isResult ? 26 : 18;
+          // Header baris
+          const drawHeader = () => {
+            ensureSpace(headerH);
+            let x = MARGIN;
+            const top = y;
+            cols.forEach((c, i) => {
+              page.drawRectangle({ x, y: top - headerH, width: colW[i], height: headerH, color: rgb(0.20, 0.45, 0.62) });
+              page.drawRectangle({ x, y: top - headerH, width: colW[i], height: headerH, borderColor: bClr, borderWidth: 0.5 });
+              const hs = 6;
+              const lines = wrapText(c.header, bold, hs, colW[i] - 4);
+              const startY = top - headerH / 2 + (lines.length * (hs + 1)) / 2 - hs + 1;
+              lines.forEach((ln, li) => {
+                const w = bold.widthOfTextAtSize(ln, hs);
+                page.drawText(ln, { x: x + (colW[i] - w) / 2, y: startY - li * (hs + 1), size: hs, font: bold, color: rgb(1, 1, 1) });
+              });
+              x += colW[i];
+            });
+            y -= headerH;
+          };
+          drawHeader();
+
+          // Baris data — gabung sel "scenario" bila sama dgn baris sebelumnya.
+          let prevScenario: string | null = null;
+          let prevDistance: string | null = null;
+          let prevTarget: string | null = null;
+          for (const row of rows) {
+            if (y - rowH < MARGIN) { startFreshPage(); drawHeader(); prevScenario = null; }
+            let x = MARGIN;
+            const top = y;
+            const rowRemark = isResult ? computeRemark(row) : '';
+            cols.forEach((c, i) => {
+              page.drawRectangle({ x, y: top - rowH, width: colW[i], height: rowH, borderColor: bClr, borderWidth: 0.5 });
+              let val = '';
+              if (c.key === 'remark') val = rowRemark;
+              else val = row[c.key] === undefined || row[c.key] === null ? '' : String(row[c.key]);
+              // Sel scenario/distance/target dikosongkan bila sama (efek merge visual).
+              if (c.key === 'scenario' && val === prevScenario) val = '';
+              if (c.key === 'distance' && val === prevDistance && String(row.scenario) === prevScenario) val = '';
+              if (c.key === 'target' && val === prevTarget && String(row.scenario) === prevScenario) val = '';
+              const fs = 6.5;
+              const clipped = clipText(val, font, fs, colW[i] - 4);
+              const f = c.key === 'remark' ? bold : font;
+              const clr = c.key === 'remark' ? (rowRemark === 'Pass' ? rgb(0.1, 0.5, 0.2) : rowRemark === 'Fail' ? rgb(0.7, 0.1, 0.1) : rgb(0, 0, 0)) : rgb(0, 0, 0);
+              page.drawText(clipped, { x: x + (colW[i] - f.widthOfTextAtSize(clipped, fs)) / 2, y: top - rowH / 2 - fs / 2 + 1, size: fs, font: f, color: clr });
+              x += colW[i];
+            });
+            prevScenario = String(row.scenario ?? '');
+            prevDistance = String(row.distance ?? '');
+            prevTarget = String(row.target ?? '');
+            y -= rowH;
+          }
+          y -= 10;
+          break;
+        }
+
+        case 'photo_grid_3': {
+          // Grid foto per sektor: judul + 3 kolom (Speedtest / Youtube-Detik /
+          // Location), satu unit per sektor. Foto contain (rasio asli).
+          const units = block.photoGrid ?? [];
+          const colHeaders = ['SPEEDTEST', 'YOUTUBE/DETIK', 'LOCATION'];
+          const bClr = colorOf(bd?.color);
+          const bW = bd?.width ?? 1;
+          for (const unit of units) {
+            // Perkiraan tinggi 1 unit: judul(16) + header kolom(16) + foto(160).
+            const titleH = 16, colHdrH = 16, photoH = 150;
+            if (y - (titleH + colHdrH + photoH) < MARGIN) startFreshPage();
+            const top = y;
+            // Judul unit (banner)
+            page.drawRectangle({ x: MARGIN, y: top - titleH, width: contentWidth, height: titleH, color: rgb(0.85, 0.9, 0.95), borderColor: bClr, borderWidth: bW });
+            const tw = bold.widthOfTextAtSize(unit.title, 9);
+            page.drawText(unit.title, { x: MARGIN + (contentWidth - tw) / 2, y: top - 11, size: 9, font: bold });
+            // Header 3 kolom
+            const cw = contentWidth / 3;
+            const hdrY = top - titleH;
+            colHeaders.forEach((h, i) => {
+              page.drawRectangle({ x: MARGIN + i * cw, y: hdrY - colHdrH, width: cw, height: colHdrH, color: rgb(0.93, 0.95, 0.98), borderColor: bClr, borderWidth: bW });
+              const w = bold.widthOfTextAtSize(h, 8);
+              page.drawText(h, { x: MARGIN + i * cw + (cw - w) / 2, y: hdrY - 11, size: 8, font: bold });
+            });
+            // 3 kotak foto
+            const photoY = hdrY - colHdrH;
+            for (let i = 0; i < 3; i++) {
+              const cellX = MARGIN + i * cw;
+              page.drawRectangle({ x: cellX, y: photoY - photoH, width: cw, height: photoH, borderColor: bClr, borderWidth: bW });
+              const ph = unit.photos[i];
+              if (ph) {
+                try {
+                  const embedded = await this.embedImage(doc, ph);
+                  if (embedded) {
+                    const pad = 3;
+                    const scale = Math.min((cw - pad * 2) / embedded.width, (photoH - pad * 2) / embedded.height);
+                    const w = embedded.width * scale;
+                    const h = embedded.height * scale;
+                    page.drawImage(embedded, { x: cellX + (cw - w) / 2, y: photoY - photoH + (photoH - h) / 2, width: w, height: h });
+                  }
+                } catch (err) {
+                  this.logger.warn(`Grid foto gagal (${unit.title}): ${String(err)}`);
+                }
+              }
+            }
+            y = photoY - photoH - 12;
+          }
           break;
         }
 
