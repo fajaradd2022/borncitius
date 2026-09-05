@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
 import {
@@ -17,6 +17,8 @@ import {
   PenLine,
   Loader2,
   X,
+  Upload,
+  Camera,
 } from "lucide-react";
 
 import { Topbar } from "@/components/topbar";
@@ -135,6 +137,9 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
   const [busyAction, setBusyAction] = useState<null | "send-back" | "approve-all" | "reopen">(null);
   const [reopenOpen, setReopenOpen] = useState(false);
   const [reopenReason, setReopenReason] = useState("");
+  // Ref berkas dipakai bersama antar field (hanya satu editor aktif pada satu waktu).
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [lightbox, setLightbox] = useState<{ items: LightboxItem[]; startIndex: number } | null>(null);
 
   /**
@@ -345,6 +350,52 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
     }
   }
 
+  // Upload/ganti lampiran (foto/file/dokumen) langsung dari halaman review.
+  // Untuk field bertipe foto/file, tombol edit membuka pemilih berkas ini —
+  // bukan input teks. Endpoint sama dengan yang dipakai teknisi.
+  async function handleUploadAttachment(field: ReviewField, file: File) {
+    setBusyFieldId(field.id);
+    try {
+      const type =
+        field.fieldType === "signed_document"
+          ? "signed_document"
+          : field.fieldType === "file"
+            ? "file_uploaded"
+            : "photo_uploaded";
+      const form = new FormData();
+      form.append("file", file);
+      form.append("type", type);
+      const res = await fetch(
+        `/api/proxy/tasks/${task.id}/fields/${field.id}/attachments`,
+        { method: "POST", body: form },
+      );
+      const body = (await res.json().catch(() => null)) as
+        | (ReviewAttachment & { message?: string })
+        | null;
+      if (!res.ok || !body?.id) {
+        toast.error("Gagal mengunggah berkas.", { description: body?.message });
+        return;
+      }
+      updateField(field.id, {
+        attachments: [
+          ...(field.attachments ?? []),
+          {
+            id: body.id,
+            originalName: body.originalName,
+            mimeType: body.mimeType,
+            syncStatus: body.syncStatus ?? "pending",
+          },
+        ],
+      });
+      setEditingFieldId(null);
+      toast.success(`Berkas untuk "${field.label}" berhasil diunggah.`);
+    } catch {
+      toast.error("Tidak bisa menghubungi server.");
+    } finally {
+      setBusyFieldId(null);
+    }
+  }
+
   const sections = useMemo(() => {
     const map = new Map<string, ReviewField[]>();
     for (const f of task.fields) {
@@ -466,31 +517,106 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
                       </div>
 
                       {isEditing ? (
-                        <div className="flex items-center gap-2">
-                          <Input
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            className="h-8"
-                            autoFocus
-                          />
-                          <Button
-                            size="sm"
-                            className="h-8"
-                            disabled={isBusy}
-                            onClick={() => void saveDirectEdit(field)}
-                          >
-                            {isBusy ? <Loader2 className="size-3.5 animate-spin" /> : "Simpan"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8"
-                            disabled={isBusy}
-                            onClick={() => setEditingFieldId(null)}
-                          >
-                            Batal
-                          </Button>
-                        </div>
+                        hasAttachments ? (
+                          <div className="flex flex-col gap-2 rounded-md border border-dashed p-3">
+                            <p className="text-xs text-muted-foreground">
+                              {field.fieldType === "photo"
+                                ? "Ambil foto dari kamera atau unggah dari galeri untuk mengganti/menambah."
+                                : "Unggah berkas untuk mengganti/menambah lampiran."}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {field.fieldType === "photo" && (
+                                <>
+                                  <input
+                                    ref={cameraInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const f = e.target.files?.[0];
+                                      if (f) void handleUploadAttachment(field, f);
+                                      e.target.value = "";
+                                    }}
+                                  />
+                                  <Button
+                                    size="sm"
+                                    className="h-8"
+                                    disabled={isBusy}
+                                    onClick={() => cameraInputRef.current?.click()}
+                                  >
+                                    {isBusy ? (
+                                      <Loader2 className="size-3.5 animate-spin" />
+                                    ) : (
+                                      <Camera className="size-3.5" />
+                                    )}
+                                    Ambil Foto
+                                  </Button>
+                                </>
+                              )}
+                              <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept={field.fieldType === "photo" ? "image/*" : undefined}
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) void handleUploadAttachment(field, f);
+                                  e.target.value = "";
+                                }}
+                              />
+                              <Button
+                                size="sm"
+                                variant={field.fieldType === "photo" ? "outline" : "default"}
+                                className="h-8"
+                                disabled={isBusy}
+                                onClick={() => fileInputRef.current?.click()}
+                              >
+                                {isBusy ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : (
+                                  <Upload className="size-3.5" />
+                                )}
+                                {field.fieldType === "photo" ? "Upload Foto" : "Upload Berkas"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8"
+                                disabled={isBusy}
+                                onClick={() => setEditingFieldId(null)}
+                              >
+                                Batal
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              className="h-8"
+                              autoFocus
+                            />
+                            <Button
+                              size="sm"
+                              className="h-8"
+                              disabled={isBusy}
+                              onClick={() => void saveDirectEdit(field)}
+                            >
+                              {isBusy ? <Loader2 className="size-3.5 animate-spin" /> : "Simpan"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8"
+                              disabled={isBusy}
+                              onClick={() => setEditingFieldId(null)}
+                            >
+                              Batal
+                            </Button>
+                          </div>
+                        )
                       ) : hasAttachments && field.attachments && field.attachments.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
                           {field.attachments.map((att) => (

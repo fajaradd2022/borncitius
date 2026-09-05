@@ -26,14 +26,22 @@ async function forward(request: Request, path: string[]): Promise<NextResponse> 
   }
 
   const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-  let body: string | undefined;
+  let body: BodyInit | undefined;
 
-  // DELETE sering dikirim tanpa body (hapus satu resource by id) — hanya
-  // sisipkan body & Content-Type kalau memang ada isinya, supaya bodiless
-  // DELETE tidak dipaksa jadi JSON kosong.
+  // Deteksi multipart/form-data (upload berkas: foto/dokumen). Untuk ini body
+  // TIDAK boleh dibaca sebagai teks lalu dipaksa jadi JSON — teruskan stream
+  // apa adanya beserta Content-Type asli (termasuk boundary) agar file utuh.
+  const incomingCT = request.headers.get("content-type") ?? "";
+  const isMultipart = incomingCT.startsWith("multipart/form-data");
+
   if (request.method !== "GET" && request.method !== "DELETE") {
-    body = await request.text();
-    headers["Content-Type"] = "application/json";
+    if (isMultipart) {
+      body = await request.arrayBuffer();
+      headers["Content-Type"] = incomingCT; // pertahankan boundary
+    } else {
+      body = await request.text();
+      headers["Content-Type"] = "application/json";
+    }
   } else if (request.method === "DELETE") {
     const text = await request.text();
     if (text) {
