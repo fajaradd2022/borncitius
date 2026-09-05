@@ -135,17 +135,14 @@ export function RepeatTableField({
   }
 
   // Tambah baris untuk Sector/Cell yang SAMA (pengukuran ulang / titik tambahan
-  // di sektor itu). Sector/Cell disalin + suffix huruf agar unik.
+  // di sektor itu). Sector/Cell disalin PERSIS (tanpa suffix) agar tetap sama.
   function addRowForSector(sourceRow: Row) {
     const scenario = scenarioCol ? sourceRow[scenarioCol.key] : "";
-    const baseSector = filterCol ? sourceRow[filterCol.key] ?? "" : "";
-    // base tanpa suffix huruf yg mungkin sudah ada (1/01a -> 1/01)
-    const baseClean = baseSector.replace(/[a-z]$/i, "");
     const newRow: Row = { _id: newId() };
     editableCols.forEach((c) => {
       if (c.group) newRow[c.key] = scenario;
       else if (c.key === "distance" || c.key === "target") newRow[c.key] = sourceRow[c.key] ?? "";
-      else if (filterCol && c.key === filterCol.key) newRow[c.key] = nextSectorName(baseClean, scenario);
+      else if (filterCol && c.key === filterCol.key) newRow[c.key] = sourceRow[c.key] ?? "";
       else newRow[c.key] = "";
     });
     const srcIdx = rows.findIndex((r) => r._id === sourceRow._id);
