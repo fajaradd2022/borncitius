@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { LayoutBlockType } from '@prisma/client';
 
 /** A4 dalam satuan poin PDF (72 dpi). */
@@ -178,18 +179,43 @@ export class PdfService {
       switch (block.type) {
         case 'header': {
           const cfg = block.config ?? {};
-          // Header dua-sisi meniru contoh: kiri "NOKIA" (biru), kanan "Surge".
-          const company = String(cfg.companyName ?? 'Born Citius');
-          const parts = company.split('—').map((s) => s.trim());
-          const leftBrand = parts[0] || 'NOKIA';
-          const rightBrand = parts[1] || '';
           const top = y;
-          page.drawText(leftBrand, { x: MARGIN, y: top - 16, size: 18, font: bold, color: rgb(0.07, 0.29, 0.65) });
-          if (rightBrand) {
-            const rw = bold.widthOfTextAtSize(rightBrand, 18);
-            page.drawText(rightBrand, { x: A4.width - MARGIN - rw, y: top - 16, size: 18, font: bold, color: rgb(0.12, 0.2, 0.5) });
+          const logoH = 26; // tinggi logo maksimum
+          let drewLogo = false;
+          // Embed logo asli bila tersedia (Nokia kiri, Surge kanan).
+          const embedLogo = async (file: string): Promise<{ img: import('pdf-lib').PDFImage; w: number; h: number } | null> => {
+            try {
+              const buf = await readFile(join(process.cwd(), 'assets', 'logos', file));
+              const img = await doc.embedPng(buf);
+              const scale = logoH / img.height;
+              return { img, w: img.width * scale, h: img.height * scale };
+            } catch {
+              return null;
+            }
+          };
+          const nokia = await embedLogo('nokia.png');
+          const surge = await embedLogo('surge.png');
+          if (nokia) {
+            page.drawImage(nokia.img, { x: MARGIN, y: top - nokia.h, width: nokia.w, height: nokia.h });
+            drewLogo = true;
           }
-          y -= 24;
+          if (surge) {
+            page.drawImage(surge.img, { x: A4.width - MARGIN - surge.w, y: top - surge.h, width: surge.w, height: surge.h });
+            drewLogo = true;
+          }
+          if (drewLogo) {
+            y -= logoH + 6;
+          } else {
+            // Fallback teks bila aset logo tidak ada.
+            const company = String(cfg.companyName ?? 'Born Citius');
+            const parts = company.split('—').map((s) => s.trim());
+            page.drawText(parts[0] || 'NOKIA', { x: MARGIN, y: top - 16, size: 18, font: bold, color: rgb(0.07, 0.29, 0.65) });
+            if (parts[1]) {
+              const rw = bold.widthOfTextAtSize(parts[1], 18);
+              page.drawText(parts[1], { x: A4.width - MARGIN - rw, y: top - 16, size: 18, font: bold, color: rgb(0.12, 0.2, 0.5) });
+            }
+            y -= 24;
+          }
           // Judul laporan (opsional, di tengah)
           const rt = String(cfg.reportTitle ?? ctx.title);
           if (rt) {
