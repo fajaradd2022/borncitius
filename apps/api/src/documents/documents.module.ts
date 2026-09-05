@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Post,
   Res,
+  Logger,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -31,6 +32,31 @@ class DocumentsController {
     private readonly docx: DocxService,
     private readonly config: ConfigService,
   ) {}
+
+  private readonly logger = new Logger('TestCallExport');
+
+  /**
+   * Validasi sanity data test-call. Hanya WARNING di log (tidak menggagalkan
+   * build), agar operator tahu bila ada data yang kemungkinan salah input.
+   */
+  private validateTestCallRows(rows: Array<Record<string, unknown>>): void {
+    const num = (v: unknown): number => parseFloat(String(v ?? '').replace(/,/g, '.'));
+    rows.forEach((r, i) => {
+      const tag = `baris ${i + 1} (${String(r.scenario ?? '')} ${String(r.sectorCell ?? '')})`;
+      const dl = num(r.dlTput), ul = num(r.ulTput);
+      const rIn = String(r.rsrpIndoor ?? '').trim(), rOut = String(r.rsrpOutdoor ?? '').trim();
+      const rsrpIn = num(r.rsrpIndoor), rsrpOut = num(r.rsrpOutdoor);
+      const rsrq = num(r.rsrq), sinr = num(r.sinr);
+      if (isFinite(dl) && isFinite(ul) && ul >= dl) this.logger.warn(`${tag}: UL Tput (${ul}) >= DL Tput (${dl}) — kemungkinan field tertukar.`);
+      if (isFinite(rsrpIn) && rsrpIn > 0) this.logger.warn(`${tag}: RSRP Indoor positif (${rsrpIn}) — seharusnya negatif.`);
+      if (isFinite(rsrpOut) && rsrpOut > 0) this.logger.warn(`${tag}: RSRP Outdoor positif (${rsrpOut}) — seharusnya negatif.`);
+      if (isFinite(rsrq) && rsrq > 0) this.logger.warn(`${tag}: RSRQ positif (${rsrq}) — seharusnya negatif.`);
+      if (isFinite(sinr) && sinr > 40) this.logger.warn(`${tag}: SINR (${sinr}) di luar rentang wajar (>40).`);
+      if (rIn !== '' && rIn !== '-' && rOut !== '' && rOut !== '-') this.logger.warn(`${tag}: RSRP Indoor DAN Outdoor sama-sama terisi — hanya satu yang seharusnya diisi.`);
+      const empties = ['position', 'testLocationCategory', 'latitude', 'longitude'].filter((k) => String(r[k] ?? '').trim() === '');
+      if (empties.length) this.logger.warn(`${tag}: kolom kosong: ${empties.join(', ')}.`);
+    });
+  }
 
   /**
    * Membuat dokumen akhir untuk task yang sudah disetujui.
@@ -299,6 +325,9 @@ class DocumentsController {
           return { title: `SCEN${n}_SEC${cell} (${dist}m)`, siteTag, photos };
         })
         .filter((u): u is { title: string; siteTag: string; photos: Array<{ absolutePath: string; mimeType: string } | null> } => u !== null);
+
+      // Validasi sanity data (warning di log; tidak menggagalkan build).
+      this.validateTestCallRows(rows);
 
       let ord = 1000;
       blocks.push({ type: 'test_info_table', label: 'TEST INFORMATION', orderIndex: ord++, displayStyle: null, config: {}, tableData: { columns, rows, remarkRules }, siteInfo });

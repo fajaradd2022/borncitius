@@ -510,44 +510,46 @@ export class PdfService {
           // Judul tabel + site info (di atas tabel pertama saja bila diinginkan).
           const title = isResult ? 'TEST RESULTS' : 'TEST INFORMATION';
           ensureSpace(40);
-          // Banner judul
-          page.drawRectangle({ x: MARGIN, y: y - 22, width: contentWidth, height: 22, color: rgb(0.09, 0.35, 0.55) });
+          // Banner judul — warna 0B769F (sesuai template OOXML).
+          page.drawRectangle({ x: MARGIN, y: y - 22, width: contentWidth, height: 22, color: hexToRgb('#0B769F') ?? rgb(0.04, 0.46, 0.62) });
           const tw = bold.widthOfTextAtSize(title, 13);
           page.drawText(title, { x: MARGIN + (contentWidth - tw) / 2, y: y - 16, size: 13, font: bold, color: rgb(1, 1, 1) });
           y -= 22;
 
-          // Definisi kolom per jenis tabel (meniru contoh customer).
+          // Definisi kolom per jenis tabel (lebar = twip dari template OOXML).
           const infoCols = [
-            { key: 'scenario', header: 'Scenario', w: 12 },
-            { key: 'distance', header: 'Distance to BTS (mtr)', w: 13 },
-            { key: 'target', header: 'Target (Mbps)', w: 10 },
-            { key: 'sectorCell', header: 'Sector/Cell', w: 9 },
-            { key: 'position', header: 'Position', w: 10 },
-            { key: 'testLocationCategory', header: 'Test Location Category', w: 22 },
-            { key: 'latitude', header: 'Latitude', w: 12 },
-            { key: 'longitude', header: 'Longitude', w: 12 },
+            { key: 'scenario', header: 'Scenario', w: 1131 },
+            { key: 'distance', header: 'Distance to BTS (mtr)', w: 1276 },
+            { key: 'target', header: 'Target (Mbps)', w: 992 },
+            { key: 'sectorCell', header: 'Sector/Cell', w: 709 },
+            { key: 'position', header: 'Position', w: 1134 },
+            { key: 'testLocationCategory', header: 'Test Location Category', w: 2409 },
+            { key: 'latitude', header: 'Latitude', w: 993 },
+            { key: 'longitude', header: 'Longitude', w: 1341 },
           ];
           const resultCols = [
-            { key: 'scenario', header: 'Scenario', w: 9 },
-            { key: 'distance', header: 'Distance to BTS (mtr)', w: 9 },
-            { key: 'target', header: 'Target (Mbps)', w: 7 },
-            { key: 'sectorCell', header: 'Sector/Cell', w: 7 },
-            { key: 'dlTput', header: 'DL Tput (Mbps)', w: 8 },
-            { key: 'ulTput', header: 'UL Tput (Mbps)', w: 8 },
-            { key: 'pci', header: 'PCI', w: 5 },
-            { key: 'rsrpIndoor', header: 'Indoor', w: 7, group: 'RSRP (dBm)' },
-            { key: 'rsrpOutdoor', header: 'Outdoor', w: 7, group: 'RSRP (dBm)' },
-            { key: 'sinr', header: 'SINR (dB)', w: 6 },
-            { key: 'rsrq', header: 'RSRQ (dB)', w: 6 },
-            { key: 'jitter', header: 'Jitter (ms)', w: 5 },
-            { key: 'latency', header: 'Latency (ms)', w: 6 },
-            { key: 'remark', header: 'Remark', w: 6 },
+            { key: 'scenario', header: 'Scenario', w: 805 },
+            { key: 'distance', header: 'Distance to BTS (mtr)', w: 810 },
+            { key: 'target', header: 'Target (Mbps)', w: 630 },
+            { key: 'sectorCell', header: 'Sector/Cell', w: 727 },
+            { key: 'dlTput', header: 'DL Tput (Mbps)', w: 803 },
+            { key: 'ulTput', header: 'UL Tput (Mbps)', w: 630 },
+            { key: 'pci', header: 'PCI', w: 450 },
+            { key: 'rsrpIndoor', header: 'Indoor', w: 810, group: 'RSRP (dBm)' },
+            { key: 'rsrpOutdoor', header: 'Outdoor', w: 900, group: 'RSRP (dBm)' },
+            { key: 'sinr', header: 'SINR (dB)', w: 540 },
+            { key: 'rsrq', header: 'RSRQ (dB)', w: 810 },
+            { key: 'jitter', header: 'Jitter (ms)', w: 630 },
+            { key: 'latency', header: 'Latency (ms)', w: 720 },
+            { key: 'remark', header: 'Remark', w: 720 },
           ];
           const cols = isResult ? resultCols : infoCols;
           const totalW = cols.reduce((s, c) => s + c.w, 0);
           const colW = cols.map((c) => (c.w / totalW) * contentWidth);
-          const bClr = rgb(0.4, 0.4, 0.4);
-          const hdrBg = rgb(0.20, 0.45, 0.62);
+          // Border sel hitam (bukan abu-abu), header C1E4F5 dgn teks hitam.
+          const bClr = rgb(0, 0, 0);
+          const hdrBg = hexToRgb('#C1E4F5') ?? rgb(0.76, 0.89, 0.96);
+          const hdrText = rgb(0, 0, 0);
 
           const computeRemark = (row: Record<string, unknown>): string => {
             const rule = rules.find((r) => r.scenario === row.scenario);
@@ -577,7 +579,7 @@ export class PdfService {
                 page.drawRectangle({ x, y: top - headerH, width: colW[i], height: baseHdrH, borderColor: bClr, borderWidth: 0.5 });
                 const hs = 6;
                 const w = bold.widthOfTextAtSize(c.header, hs);
-                page.drawText(c.header, { x: x + (colW[i] - w) / 2, y: top - headerH + baseHdrH / 2 - hs / 2 + 1, size: hs, font: bold, color: rgb(1, 1, 1) });
+                page.drawText(c.header, { x: x + (colW[i] - w) / 2, y: top - headerH + baseHdrH / 2 - hs / 2 + 1, size: hs, font: bold, color: hdrText });
               } else {
                 // Kolom biasa mengisi seluruh tinggi header (tier1 + base).
                 page.drawRectangle({ x, y: top - headerH, width: colW[i], height: headerH, color: hdrBg });
@@ -587,7 +589,7 @@ export class PdfService {
                 const startY = top - headerH / 2 + (lines.length * (hs + 1)) / 2 - hs + 1;
                 lines.forEach((ln, li) => {
                   const w = bold.widthOfTextAtSize(ln, hs);
-                  page.drawText(ln, { x: x + (colW[i] - w) / 2, y: startY - li * (hs + 1), size: hs, font: bold, color: rgb(1, 1, 1) });
+                  page.drawText(ln, { x: x + (colW[i] - w) / 2, y: startY - li * (hs + 1), size: hs, font: bold, color: hdrText });
                 });
               }
               x += colW[i];
@@ -605,7 +607,7 @@ export class PdfService {
                   page.drawRectangle({ x: gx, y: top - tier1H, width: spanW, height: tier1H, color: hdrBg });
                   page.drawRectangle({ x: gx, y: top - tier1H, width: spanW, height: tier1H, borderColor: bClr, borderWidth: 0.5 });
                   const w = bold.widthOfTextAtSize(grp, 6.5);
-                  page.drawText(grp, { x: gx + (spanW - w) / 2, y: top - tier1H / 2 - 2, size: 6.5, font: bold, color: rgb(1, 1, 1) });
+                  page.drawText(grp, { x: gx + (spanW - w) / 2, y: top - tier1H / 2 - 2, size: 6.5, font: bold, color: hdrText });
                   for (let k = i; k < j; k++) gx += colW[k];
                   i = j;
                 } else {
@@ -618,28 +620,43 @@ export class PdfService {
           };
           drawHeader();
 
-          // Baris data — gabung sel "scenario" bila sama dgn baris sebelumnya.
+          // Baris data — gabung sel "scenario/distance/target" (vMerge visual).
           let prevScenario: string | null = null;
           let prevDistance: string | null = null;
           let prevTarget: string | null = null;
           for (const row of rows) {
-            if (y - rowH < MARGIN) { startFreshPage(); drawHeader(); prevScenario = null; }
+            if (y - rowH < MARGIN) { startFreshPage(); drawHeader(); prevScenario = null; prevDistance = null; prevTarget = null; }
             let x = MARGIN;
             const top = y;
             const rowRemark = isResult ? computeRemark(row) : '';
+            const sameScenario = String(row.scenario ?? '') === prevScenario;
             cols.forEach((c, i) => {
-              page.drawRectangle({ x, y: top - rowH, width: colW[i], height: rowH, borderColor: bClr, borderWidth: 0.5 });
+              // vMerge: kolom scenario/distance/target yg sama dgn baris atas —
+              // gambar sel TANPA garis atas agar tampak menyatu (bukan sel kosong).
+              const isMergeCol = c.key === 'scenario' || c.key === 'distance' || c.key === 'target';
+              const merged = isMergeCol && sameScenario;
+              if (merged) {
+                // Border kiri, kanan, bawah saja (tanpa atas) → efek menyatu.
+                page.drawLine({ start: { x, y: top }, end: { x, y: top - rowH }, thickness: 0.5, color: bClr });
+                page.drawLine({ start: { x: x + colW[i], y: top }, end: { x: x + colW[i], y: top - rowH }, thickness: 0.5, color: bClr });
+              } else {
+                page.drawRectangle({ x, y: top - rowH, width: colW[i], height: rowH, borderColor: bClr, borderWidth: 0.5 });
+              }
               let val = '';
               if (c.key === 'remark') val = rowRemark;
               else val = row[c.key] === undefined || row[c.key] === null ? '' : String(row[c.key]);
-              // Sel scenario/distance/target dikosongkan bila sama (efek merge visual).
-              if (c.key === 'scenario' && val === prevScenario) val = '';
-              if (c.key === 'distance' && val === prevDistance && String(row.scenario) === prevScenario) val = '';
-              if (c.key === 'target' && val === prevTarget && String(row.scenario) === prevScenario) val = '';
+              // Format Latitude/Longitude: buang tanda minus, tambah hemisfer.
+              if (c.key === 'latitude') val = formatLatLon(val, 'lat');
+              if (c.key === 'longitude') val = formatLatLon(val, 'lon');
+              // RSRP: tampilkan '-' bila kosong (satu sisi diisi angka, sisi lain '-').
+              if ((c.key === 'rsrpIndoor' || c.key === 'rsrpOutdoor') && val === '') val = '-';
+              // Sembunyikan teks sel merge (nilai hanya di baris pertama blok).
+              if (merged) val = '';
               const fs = 6.5;
               const clipped = clipText(val, font, fs, colW[i] - 4);
-              const f = c.key === 'remark' ? bold : font;
-              const clr = c.key === 'remark' ? (rowRemark === 'Pass' ? rgb(0.1, 0.5, 0.2) : rowRemark === 'Fail' ? rgb(0.7, 0.1, 0.1) : rgb(0, 0, 0)) : rgb(0, 0, 0);
+              // Kolom scenario/distance/target bold; remark bold hitam (bukan hijau).
+              const f = (isMergeCol || c.key === 'remark') ? bold : font;
+              const clr = rgb(0, 0, 0);
               page.drawText(clipped, { x: x + (colW[i] - f.widthOfTextAtSize(clipped, fs)) / 2, y: top - rowH / 2 - fs / 2 + 1, size: fs, font: f, color: clr });
               x += colW[i];
             });
@@ -650,19 +667,21 @@ export class PdfService {
           }
           y -= 8;
 
-          // Notes hanya di bawah TEST RESULTS (meniru contoh customer).
+          // Notes hanya di bawah TEST RESULTS. Teks PERSIS sesuai template
+          // (perhatikan spasi/koma — jangan "dirapikan").
           if (isResult) {
             const notesLines = [
               'Notes:',
               '• Test points All Scenario and sector tests are already achieved with target',
-              '    o  Scenario 1 Near 100m > 315 Mbps',
-              '    o  Scenario 2 Middle 300m > 150 Mbps',
-              '    o  Scenario 3 Far 500m > 50 Mbps',
-              '• Indoor Test point can be done in: Restaurant (Warteg), Mosque, Minimart (Indomaret, Alfamart, etc)',
+              '      o  Scenario 1 Near 100m > 315 Mbps, ',
+              '      o  Scenario 2 Middle 300m >150 Mbps ',
+              '      o  Scenario 3 Far 500m >50 Mbps',
+              '• Indoor Test point can be done in: ',
+              '      Restaurant (Warteg), Mosque, Minimart (Indomaret, Alfamart, etc)',
             ];
             ensureSpace(notesLines.length * 11 + 6);
             notesLines.forEach((ln, i) => {
-              page.drawText(ln, { x: MARGIN, y: y - 9 - i * 11, size: i === 0 ? 8 : 7.5, font: i === 0 ? bold : font, color: rgb(0.1, 0.1, 0.1) });
+              page.drawText(ln, { x: MARGIN, y: y - 9 - i * 11, size: i === 0 ? 8 : 7.5, font: i === 0 ? bold : font, color: rgb(0, 0, 0) });
             });
             y -= notesLines.length * 11 + 6;
           }
@@ -675,9 +694,9 @@ export class PdfService {
           // memanjang (contain, rasio asli).
           const units = block.photoGrid ?? [];
           const colHeaders = ['SPEEDTEST', 'YOUTUBE/DETIK', 'LOCATION'];
-          const bClr = colorOf(bd?.color);
+          const bClr = rgb(0, 0, 0); // border hitam sesuai template
           const bW = bd?.width ?? 1;
-          const gridHdrBg = rgb(0.20, 0.45, 0.62);
+          const gridHdrBg = hexToRgb('#DAE9F7') ?? rgb(0.85, 0.91, 0.97);
           const siteTag = (block.siteInfo?.siteId && block.siteInfo?.siteName)
             ? `${block.siteInfo.siteId}_${block.siteInfo.siteName}`
             : (block.siteInfo?.siteId ?? '');
@@ -688,29 +707,20 @@ export class PdfService {
             const top = y;
             // Foto memenuhi sisa tinggi halaman (dari bawah header kolom s/d margin).
             const photoH = top - titleH - colHdrH - MARGIN;
-            // Judul unit (banner) — bagian site di-highlight kuning spt contoh.
-            page.drawRectangle({ x: MARGIN, y: top - titleH, width: contentWidth, height: titleH, color: rgb(0.87, 0.91, 0.95), borderColor: bClr, borderWidth: bW });
+            // Judul unit (banner) — bg DAE9F7, teks hitam, TANPA highlight kuning.
+            page.drawRectangle({ x: MARGIN, y: top - titleH, width: contentWidth, height: titleH, color: gridHdrBg, borderColor: bClr, borderWidth: bW });
             const unitSiteTag = unit.siteTag ?? siteTag;
-            const baseTitle = unit.title;
+            const fullTitle = unitSiteTag ? `${unit.title} ${unitSiteTag}` : unit.title;
             const tsz = 11;
-            const baseW = bold.widthOfTextAtSize(baseTitle + ' ', tsz);
-            const siteW = unitSiteTag ? bold.widthOfTextAtSize(unitSiteTag, tsz) : 0;
-            const totalTW = baseW + siteW;
-            let tx = MARGIN + (contentWidth - totalTW) / 2;
-            const tyText = top - 13;
-            page.drawText(baseTitle, { x: tx, y: tyText, size: tsz, font: bold, color: rgb(0, 0, 0) });
-            tx += baseW;
-            if (unitSiteTag) {
-              page.drawRectangle({ x: tx - 1, y: tyText - 2, width: siteW + 2, height: tsz + 3, color: rgb(1, 0.93, 0.2) });
-              page.drawText(unitSiteTag, { x: tx, y: tyText, size: tsz, font: bold, color: rgb(0, 0, 0) });
-            }
-            // Header 3 kolom — biru medium, teks putih (spt contoh)
+            const tw2 = bold.widthOfTextAtSize(fullTitle, tsz);
+            page.drawText(fullTitle, { x: MARGIN + (contentWidth - tw2) / 2, y: top - 13, size: tsz, font: bold, color: rgb(0, 0, 0) });
+            // Header 3 kolom — bg DAE9F7, teks hitam (sesuai template).
             const cw = contentWidth / 3;
             const hdrY = top - titleH;
             colHeaders.forEach((h, i) => {
               page.drawRectangle({ x: MARGIN + i * cw, y: hdrY - colHdrH, width: cw, height: colHdrH, color: gridHdrBg, borderColor: bClr, borderWidth: bW });
               const w = bold.widthOfTextAtSize(h, 9);
-              page.drawText(h, { x: MARGIN + i * cw + (cw - w) / 2, y: hdrY - 11, size: 9, font: bold, color: rgb(1, 1, 1) });
+              page.drawText(h, { x: MARGIN + i * cw + (cw - w) / 2, y: hdrY - 11, size: 9, font: bold, color: rgb(0, 0, 0) });
             });
             // 3 kotak foto besar (memenuhi tinggi halaman)
             const photoY = hdrY - colHdrH;
@@ -1031,3 +1041,20 @@ function hexToRgb(hex?: string): ReturnType<typeof rgb> | null {
   const b = parseInt(h.slice(4, 6), 16) / 255;
   return rgb(r, g, b);
 }
+
+/**
+ * Format Latitude/Longitude gaya template: derajat desimal (6 desimal) TANPA
+ * tanda minus + huruf hemisfer. lat: negatif→S, positif→N. lon: negatif→W,
+ * positif→E. Bila sudah ada huruf hemisfer atau bukan angka, kembalikan apa adanya.
+ */
+function formatLatLon(raw: string, kind: 'lat' | 'lon'): string {
+  const s = String(raw ?? '').trim();
+  if (s === '') return '';
+  // Sudah ada hemisfer (mis. "6.205649S") → biarkan.
+  if (/[NSEW]$/i.test(s)) return s.toUpperCase();
+  const num = parseFloat(s.replace(/,/g, '.'));
+  if (!isFinite(num)) return s;
+  const hemi = kind === 'lat' ? (num < 0 ? 'S' : 'N') : (num < 0 ? 'W' : 'E');
+  return `${Math.abs(num).toFixed(6)}${hemi}`;
+}
+
