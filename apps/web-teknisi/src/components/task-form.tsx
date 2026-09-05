@@ -155,22 +155,25 @@ export function TaskForm({ task }: { task: FormTask }) {
   }
 
   // --- TestCall: foto tertaut ke baris tabel ---
-  // Bila ada field repeat_table, satu field photo menjadi "gudang foto" yang
-  // dikelola dari dalam tabel (bukan ditampilkan sebagai field foto biasa).
+  // Bila ada field repeat_table, SEMUA field photo menjadi "gudang foto" yang
+  // dikelola dari dalam tabel (tidak ditampilkan sebagai field foto terpisah).
+  // Upload memakai field photo pertama sebagai penyimpan.
   const repeatField = task.fields.find((f) => f.fieldType === "repeat_table");
-  const docPhotoField = repeatField
-    ? task.fields.find((f) => f.fieldType === "photo")
-    : undefined;
+  const photoFields = repeatField ? task.fields.filter((f) => f.fieldType === "photo") : [];
+  const docPhotoField = photoFields[0];
+  const hiddenPhotoIds = new Set(photoFields.map((f) => f.id));
 
-  const photoAttachments: RowAttachment[] = (docPhotoField?.attachments ?? []).map((a) => {
-    const meta = (a.metadata ?? {}) as Record<string, unknown>;
-    return {
-      id: a.id,
-      rowId: typeof meta._tcRowId === "string" ? meta._tcRowId : "",
-      slot: Number(meta._tcSlot ?? -1),
-      url: `/api/proxy/tasks/attachments/${a.id}/file`,
-    };
-  });
+  const photoAttachments: RowAttachment[] = photoFields.flatMap((pf) =>
+    (pf.attachments ?? []).map((a) => {
+      const meta = (a.metadata ?? {}) as Record<string, unknown>;
+      return {
+        id: a.id,
+        rowId: typeof meta._tcRowId === "string" ? meta._tcRowId : "",
+        slot: Number(meta._tcSlot ?? -1),
+        url: `/api/proxy/tasks/attachments/${a.id}/file`,
+      };
+    }),
+  );
 
   async function uploadRowPhoto(rowId: string, slot: number, file: File) {
     if (!docPhotoField) return;
@@ -195,11 +198,13 @@ export function TaskForm({ task }: { task: FormTask }) {
   const sections = new Map<string, FormField[]>();
   for (const f of task.fields) {
     if (f.fieldType === "section") continue;
-    if (docPhotoField && f.id === docPhotoField.id) continue; // dikelola dari tabel
+    if (hiddenPhotoIds.has(f.id)) continue; // foto dikelola dari tabel
     const list = sections.get(f.section) ?? [];
     list.push(f);
     sections.set(f.section, list);
   }
+  // Buang section yang jadi kosong setelah field foto disembunyikan.
+  for (const [sec, list] of sections) if (list.length === 0) sections.delete(sec);
 
   return (
     <main className="flex min-h-dvh flex-col pb-28">
@@ -268,6 +273,11 @@ export function TaskForm({ task }: { task: FormTask }) {
                       }}
                       onUploadPhoto={(rowId, slot, file) => uploadRowPhoto(rowId, slot, file)}
                       onDeletePhoto={(attId) => deleteRowPhoto(attId)}
+                      onGetLocation={async () => {
+                        const gps = await getPosition();
+                        const [lat, lng] = gps.split(",").map((s) => s.trim());
+                        return lat && lng ? { latitude: lat, longitude: lng } : null;
+                      }}
                     />
                   ) : ATTACHMENT_TYPES.includes(field.fieldType) ? (
                     field.fieldType === "photo" ? (

@@ -179,15 +179,20 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
     () => task.fields.filter((f) => f.fieldType !== "section"),
     [task.fields]
   );
-  // TestCall: bila ada repeat_table, satu field photo jadi "gudang foto" yang
+  // TestCall: bila ada repeat_table, SEMUA field photo jadi "gudang foto" yang
   // ditampilkan di dalam tabel (bukan sebagai field terpisah).
-  const docPhotoFieldId = useMemo(() => {
+  const docPhotoFieldIds = useMemo(() => {
     const hasRepeat = task.fields.some((f) => f.fieldType === "repeat_table");
-    return hasRepeat ? task.fields.find((f) => f.fieldType === "photo")?.id : undefined;
+    return hasRepeat
+      ? new Set(task.fields.filter((f) => f.fieldType === "photo").map((f) => f.id))
+      : new Set<string>();
   }, [task.fields]);
   const docPhotoAttachments = useMemo(
-    () => (docPhotoFieldId ? task.fields.find((f) => f.id === docPhotoFieldId)?.attachments ?? [] : []),
-    [task.fields, docPhotoFieldId],
+    () =>
+      task.fields
+        .filter((f) => docPhotoFieldIds.has(f.id))
+        .flatMap((f) => f.attachments ?? []),
+    [task.fields, docPhotoFieldIds],
   );
   const allApproved =
     reviewableFields.length > 0 &&
@@ -496,7 +501,7 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
             <CardContent className="flex flex-col divide-y">
               {fields
                 .filter((f) => f.fieldType !== "section")
-                .filter((f) => f.id !== docPhotoFieldId)
+                .filter((f) => !docPhotoFieldIds.has(f.id))
                 .map((field) => {
                   const Icon = fieldIcon(field.fieldType);
                   const isEditing = editingFieldId === field.id;
@@ -890,25 +895,43 @@ function TestCallTableView({ field, photoAttachments = [] }: { field: ReviewFiel
   const displayCols = columns.filter((c) => c.key !== "remark");
   const scenAbbr = (s: string) => (/(\d+)/.exec(s ?? "")?.[1] ?? s);
   const rowsWithPhotos = shown.filter((r) => (photosByRow.get(String(r._id ?? "")) ?? []).some(Boolean));
+  // Ringkasan Pass/Fail untuk memudahkan reviewer.
+  const summary = useMemo(() => {
+    let pass = 0, fail = 0, empty = 0;
+    for (const r of rows) {
+      const rk = computeRemark(r);
+      if (rk === "Pass") pass++; else if (rk === "Fail") fail++; else empty++;
+    }
+    return { pass, fail, empty };
+  }, [rows]);
 
   return (
     <div className="flex flex-col gap-3">
-      {filterCol && sectorValues.length > 0 && (
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Filter {filterCol.label}:</span>
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="h-7 rounded border bg-background px-2 text-xs"
-          >
-            <option value="">Semua</option>
-            {sectorValues.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-          <span className="text-xs text-muted-foreground">({shown.length} baris)</span>
+      {/* Ringkasan + filter untuk memudahkan review */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2">
+        <div className="flex items-center gap-3 text-xs">
+          <span className="font-semibold">Ringkasan:</span>
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">Pass {summary.pass}</span>
+          <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">Fail {summary.fail}</span>
+          {summary.empty > 0 && <span className="rounded-full bg-zinc-100 px-2 py-0.5 font-semibold text-zinc-500">Belum {summary.empty}</span>}
+          <span className="text-muted-foreground">Total {rows.length}</span>
         </div>
-      )}
+        {filterCol && sectorValues.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Filter {filterCol.label}:</span>
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="h-7 rounded border bg-background px-2 text-xs"
+            >
+              <option value="">Semua ({rows.length})</option>
+              {sectorValues.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full border-collapse text-[11px]">
           <thead>
@@ -938,17 +961,21 @@ function TestCallTableView({ field, photoAttachments = [] }: { field: ReviewFiel
         </table>
       </div>
 
-      {/* Foto per baris (mengikuti filter) */}
+      {/* Foto per baris (mengikuti filter) — klik untuk buka penuh */}
       {rowsWithPhotos.length > 0 && (
         <div className="flex flex-col gap-3">
-          <span className="text-xs font-semibold text-muted-foreground">Dokumentasi Foto</span>
+          <span className="text-xs font-semibold text-muted-foreground">Dokumentasi Foto ({rowsWithPhotos.length} sektor)</span>
           {rowsWithPhotos.map((row) => {
             const rid = String(row._id ?? "");
             const photos = photosByRow.get(rid) ?? [];
+            const remark = computeRemark(row);
             const title = `SCEN${scenAbbr(String(row.scenario ?? ""))}_SEC${row.sectorCell ?? ""} (${row.distance ?? ""}m)`;
             return (
               <div key={rid} className="rounded-md border">
-                <div className="border-b bg-muted px-2 py-1 text-xs font-semibold">{title}</div>
+                <div className="flex items-center justify-between border-b bg-muted px-2 py-1">
+                  <span className="text-xs font-semibold">{title}</span>
+                  <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", remark === "Pass" ? "bg-emerald-100 text-emerald-700" : remark === "Fail" ? "bg-red-100 text-red-700" : "bg-zinc-100 text-zinc-500")}>{remark}</span>
+                </div>
                 <div className="grid grid-cols-3 gap-2 p-2">
                   {photoSlots.map((ps, slot) => {
                     const att = photos[slot];
@@ -956,8 +983,10 @@ function TestCallTableView({ field, photoAttachments = [] }: { field: ReviewFiel
                       <div key={ps.key} className="flex flex-col gap-1">
                         <span className="text-[9px] font-semibold uppercase text-muted-foreground">{ps.label}</span>
                         {att ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={`/api/proxy/tasks/attachments/${att.id}/file`} alt={ps.label} className="h-28 w-full rounded border object-cover" />
+                          <a href={`/api/proxy/tasks/attachments/${att.id}/file`} target="_blank" rel="noreferrer">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={`/api/proxy/tasks/attachments/${att.id}/file`} alt={ps.label} className="h-28 w-full rounded border object-cover transition hover:opacity-90" />
+                          </a>
                         ) : (
                           <div className="flex h-28 items-center justify-center rounded border border-dashed text-[10px] text-muted-foreground">—</div>
                         )}

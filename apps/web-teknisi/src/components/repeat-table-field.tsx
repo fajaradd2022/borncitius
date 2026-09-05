@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Plus, Trash2, Filter, Camera, Upload, Loader2, X } from "lucide-react";
+import { Plus, Trash2, Filter, Camera, Upload, Loader2, X, MapPin } from "lucide-react";
 import { toast } from "sonner";
 
 export interface TableColumn {
@@ -57,6 +57,7 @@ export function RepeatTableField({
   onSave,
   onUploadPhoto,
   onDeletePhoto,
+  onGetLocation,
 }: {
   label: string;
   columns: TableColumn[];
@@ -68,6 +69,7 @@ export function RepeatTableField({
   onSave: (rows: Row[]) => void;
   onUploadPhoto: (rowId: string, slot: number, file: File) => Promise<void>;
   onDeletePhoto: (attachmentId: string) => Promise<void>;
+  onGetLocation?: () => Promise<{ latitude: string; longitude: string } | null>;
 }) {
   const [rows, setRows] = useState<Row[]>(() =>
     initialRows.map((r) => ({ ...r, _id: r._id || newId() })),
@@ -130,6 +132,41 @@ export function RepeatTableField({
       if (scenarioCol && rows[i][scenarioCol.key] === scenario) { insertAt = i + 1; break; }
     }
     commit([...rows.slice(0, insertAt), newRow, ...rows.slice(insertAt)]);
+  }
+
+  // Tambah baris untuk Sector/Cell yang SAMA (pengukuran ulang / titik tambahan
+  // di sektor itu). Sector/Cell disalin + suffix huruf agar unik.
+  function addRowForSector(sourceRow: Row) {
+    const scenario = scenarioCol ? sourceRow[scenarioCol.key] : "";
+    const baseSector = filterCol ? sourceRow[filterCol.key] ?? "" : "";
+    // base tanpa suffix huruf yg mungkin sudah ada (1/01a -> 1/01)
+    const baseClean = baseSector.replace(/[a-z]$/i, "");
+    const newRow: Row = { _id: newId() };
+    editableCols.forEach((c) => {
+      if (c.group) newRow[c.key] = scenario;
+      else if (c.key === "distance" || c.key === "target") newRow[c.key] = sourceRow[c.key] ?? "";
+      else if (filterCol && c.key === filterCol.key) newRow[c.key] = nextSectorName(baseClean, scenario);
+      else newRow[c.key] = "";
+    });
+    const srcIdx = rows.findIndex((r) => r._id === sourceRow._id);
+    const insertAt = srcIdx >= 0 ? srcIdx + 1 : rows.length;
+    commit([...rows.slice(0, insertAt), newRow, ...rows.slice(insertAt)]);
+  }
+
+  async function fillLocation(rowId: string) {
+    if (!onGetLocation) return;
+    setBusy(`gps:${rowId}`);
+    try {
+      const loc = await onGetLocation();
+      if (loc) {
+        commit(rows.map((r) => (r._id === rowId ? { ...r, latitude: loc.latitude, longitude: loc.longitude } : r)));
+        toast.success("Lokasi diperbarui.");
+      } else {
+        toast.error("Lokasi tidak tersedia.");
+      }
+    } finally {
+      setBusy(null);
+    }
   }
 
   function deleteRow(rowId: string) {
@@ -210,9 +247,14 @@ export function RepeatTableField({
                       <div className="flex items-center gap-2">
                         <RemarkBadge remark={computeRemark(r)} />
                         {!locked && (
-                          <button type="button" onClick={() => deleteRow(rowId)} aria-label="Hapus baris" className="text-danger">
-                            <Trash2 className="size-4" />
-                          </button>
+                          <>
+                            <button type="button" onClick={() => addRowForSector(r)} aria-label="Tambah baris sektor ini" title="Tambah baris untuk Sector/Cell ini" className="flex items-center gap-0.5 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                              <Plus className="size-3" /> Sektor
+                            </button>
+                            <button type="button" onClick={() => deleteRow(rowId)} aria-label="Hapus baris" className="text-danger">
+                              <Trash2 className="size-4" />
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -226,6 +268,15 @@ export function RepeatTableField({
                               <option value="">—</option>
                               {(c.options ?? []).map((o) => (<option key={o} value={o}>{o}</option>))}
                             </select>
+                          ) : c.type === "gps" ? (
+                            <div className="flex gap-1">
+                              <input value={r[c.key] ?? ""} disabled={locked} onChange={(e) => updateCell(rowId, c.key, e.target.value)} placeholder="—" className="h-9 min-w-0 flex-1 rounded-lg border border-border px-2 text-sm outline-none focus:border-primary disabled:bg-muted" />
+                              {!locked && onGetLocation && c.key === "latitude" && (
+                                <button type="button" onClick={() => void fillLocation(rowId)} aria-label="Ambil lokasi" title="Ambil Latitude & Longitude" className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-white">
+                                  {busy === `gps:${rowId}` ? <Loader2 className="size-4 animate-spin" /> : <MapPin className="size-4" />}
+                                </button>
+                              )}
+                            </div>
                           ) : (
                             <input type={c.type === "number" ? "number" : "text"} inputMode={c.type === "number" ? "decimal" : undefined} value={r[c.key] ?? ""} disabled={locked} onChange={(e) => updateCell(rowId, c.key, e.target.value)} className="h-9 rounded-lg border border-border px-2 text-sm outline-none focus:border-primary disabled:bg-muted" />
                           )}
