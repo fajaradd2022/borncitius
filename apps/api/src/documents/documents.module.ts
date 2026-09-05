@@ -50,7 +50,7 @@ class DocumentsController {
         template: { select: { id: true, name: true } },
         fields: {
           orderBy: { orderIndex: 'asc' },
-          include: { attachments: { select: { storagePath: true, mimeType: true } } },
+          include: { attachments: { select: { storagePath: true, mimeType: true, watermarkMetadata: true } } },
         },
       },
     });
@@ -245,21 +245,51 @@ class DocumentsController {
         siteName: (byLabel.get('Site Name')?.value as string) ?? undefined,
       };
 
-      // Grid foto: setiap field photo (label diawali SCEN…) = satu unit sektor.
-      // Setiap unit punya hingga 3 foto (speedtest/youtube/location) dari
-      // attachments field tsb, sesuai urutan unggah.
-      const photoUnits = task.fields
-        .filter((f) => templateFields.find((t) => t.label === f.label)?.fieldType === 'photo')
-        .filter((f) => f.attachments.length > 0)
-        .map((f) => ({
-          title: f.label,
-          photos: [0, 1, 2].map((i) => {
-            const a = f.attachments[i];
-            return a
-              ? { absolutePath: this.storage.absolutePathFor(a.storagePath), mimeType: a.mimeType }
-              : null;
-          }),
-        }));
+      // Grid foto: SATU field photo menampung semua foto, tiap foto ditandai
+      // metadata { _tcRowId, _tcSlot } untuk menautkannya ke baris tabel.
+      // Unit dibangun mengikuti URUTAN baris tabel; tiap unit punya 3 slot
+      // (speedtest/youtube/location). Judul = "SCEN{n}_SEC{cell} ({distance}m)".
+      const photoField = task.fields.find(
+        (f) => templateFields.find((t) => t.label === f.label)?.fieldType === 'photo',
+      );
+      const slotDefs = Array.isArray(opts.photoSlots)
+        ? (opts.photoSlots as Array<{ key: string; label: string }>)
+        : [{ key: 'speedtest', label: 'SPEEDTEST' }, { key: 'youtube', label: 'YOUTUBE/DETIK' }, { key: 'location', label: 'LOCATION' }];
+      const nSlots = slotDefs.length;
+
+      // Peta rowId -> [attachment per slot].
+      const attByRow = new Map<string, Array<{ absolutePath: string; mimeType: string } | null>>();
+      const attNoRow: Array<{ absolutePath: string; mimeType: string }> = [];
+      for (const a of photoField?.attachments ?? []) {
+        const meta = (a.watermarkMetadata ?? {}) as Record<string, unknown>;
+        const rowId = typeof meta._tcRowId === 'string' ? meta._tcRowId : '';
+        const slot = Number(meta._tcSlot);
+        const item = { absolutePath: this.storage.absolutePathFor(a.storagePath), mimeType: a.mimeType };
+        if (rowId) {
+          if (!attByRow.has(rowId)) attByRow.set(rowId, Array<{ absolutePath: string; mimeType: string } | null>(nSlots).fill(null));
+          const arr = attByRow.get(rowId)!;
+          if (isFinite(slot) && slot >= 0 && slot < nSlots) arr[slot] = item;
+          else arr.push(item);
+        } else {
+          attNoRow.push(item);
+        }
+      }
+
+      const scenAbbr = (s: string): string => {
+        const m = /(\d+)/.exec(String(s));
+        return m ? m[1] : String(s);
+      };
+      const photoUnits = rows
+        .map((r) => {
+          const rid = String(r._id ?? '');
+          const photos = attByRow.get(rid) ?? [];
+          if (!photos.some(Boolean)) return null; // skip unit tanpa foto
+          const n = scenAbbr(String(r.scenario ?? ''));
+          const cell = String(r.sectorCell ?? '');
+          const dist = String(r.distance ?? '');
+          return { title: `SCEN${n}_SEC${cell} (${dist}m) ${siteInfo.siteId ?? ''}`.trim(), photos };
+        })
+        .filter((u): u is { title: string; photos: Array<{ absolutePath: string; mimeType: string } | null> } => u !== null);
 
       let ord = 1000;
       blocks.push({ type: 'test_info_table', label: 'TEST INFORMATION', orderIndex: ord++, displayStyle: null, config: {}, tableData: { columns, rows, remarkRules }, siteInfo });

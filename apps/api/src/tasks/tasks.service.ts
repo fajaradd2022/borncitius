@@ -101,6 +101,7 @@ export class TasksService {
                 syncStatus: true,
                 driveUrl: true,
                 capturedAt: true,
+                watermarkMetadata: true,
               },
             },
           },

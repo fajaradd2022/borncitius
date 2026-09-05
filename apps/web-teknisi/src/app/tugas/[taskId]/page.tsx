@@ -18,7 +18,7 @@ interface ApiTask {
     options: unknown;
     reviewStatus: "pending" | "approved" | "rejected";
     rejectComment: string | null;
-    attachments: Array<{ id: string; originalName: string; mimeType: string }>;
+    attachments: Array<{ id: string; originalName: string; mimeType: string; watermarkMetadata?: unknown }>;
   }>;
 }
 
@@ -53,7 +53,12 @@ export default async function IsiTugasPage({
       options: f.options ?? null,
       reviewStatus: f.reviewStatus,
       rejectComment: f.rejectComment,
-      attachments: f.attachments,
+      attachments: f.attachments.map((a) => ({
+        id: a.id,
+        originalName: a.originalName,
+        mimeType: a.mimeType,
+        metadata: (a.watermarkMetadata ?? null) as Record<string, unknown> | null,
+      })),
     })),
   };
 

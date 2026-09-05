@@ -47,6 +47,7 @@ export interface ReviewAttachment {
   originalName: string;
   mimeType: string;
   syncStatus: "pending" | "synced" | "failed";
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface ReviewField {
@@ -177,6 +178,16 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
   const reviewableFields = useMemo(
     () => task.fields.filter((f) => f.fieldType !== "section"),
     [task.fields]
+  );
+  // TestCall: bila ada repeat_table, satu field photo jadi "gudang foto" yang
+  // ditampilkan di dalam tabel (bukan sebagai field terpisah).
+  const docPhotoFieldId = useMemo(() => {
+    const hasRepeat = task.fields.some((f) => f.fieldType === "repeat_table");
+    return hasRepeat ? task.fields.find((f) => f.fieldType === "photo")?.id : undefined;
+  }, [task.fields]);
+  const docPhotoAttachments = useMemo(
+    () => (docPhotoFieldId ? task.fields.find((f) => f.id === docPhotoFieldId)?.attachments ?? [] : []),
+    [task.fields, docPhotoFieldId],
   );
   const allApproved =
     reviewableFields.length > 0 &&
@@ -485,6 +496,7 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
             <CardContent className="flex flex-col divide-y">
               {fields
                 .filter((f) => f.fieldType !== "section")
+                .filter((f) => f.id !== docPhotoFieldId)
                 .map((field) => {
                   const Icon = fieldIcon(field.fieldType);
                   const isEditing = editingFieldId === field.id;
@@ -619,7 +631,7 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
                           </div>
                         )
                       ) : field.fieldType === "repeat_table" ? (
-                        <TestCallTableView field={field} />
+                        <TestCallTableView field={field} photoAttachments={docPhotoAttachments} />
                       ) : hasAttachments && field.attachments && field.attachments.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
                           {field.attachments.map((att) => (
@@ -817,14 +829,20 @@ interface TableColumnDef {
  * Tampilan read-only tabel test-call untuk reviewer, dengan filter Sector/Cell.
  * Remark dihitung otomatis (Pass/Fail) dari DL Tput vs target scenario.
  */
-function TestCallTableView({ field }: { field: ReviewField }) {
+function TestCallTableView({ field, photoAttachments = [] }: { field: ReviewField; photoAttachments?: ReviewAttachment[] }) {
   const opts = (field.options ?? {}) as {
     columns?: TableColumnDef[];
     remarkRules?: { scenario: string; minDl: number }[];
     defaultRows?: Record<string, string>[];
+    photoSlots?: { key: string; label: string }[];
   };
   const columns = opts.columns ?? [];
   const remarkRules = opts.remarkRules ?? [];
+  const photoSlots = opts.photoSlots ?? [
+    { key: "speedtest", label: "SPEEDTEST" },
+    { key: "youtube", label: "YOUTUBE/DETIK" },
+    { key: "location", label: "LOCATION" },
+  ];
   const [filter, setFilter] = useState("");
 
   const rows = useMemo<Record<string, string>[]>(() => {
@@ -838,6 +856,21 @@ function TestCallTableView({ field }: { field: ReviewField }) {
     }
     return opts.defaultRows ?? [];
   }, [field.value, opts.defaultRows]);
+
+  // Peta rowId -> [attachment per slot].
+  const photosByRow = useMemo(() => {
+    const map = new Map<string, (ReviewAttachment | null)[]>();
+    for (const a of photoAttachments) {
+      const meta = (a.metadata ?? {}) as Record<string, unknown>;
+      const rowId = typeof meta._tcRowId === "string" ? meta._tcRowId : "";
+      const slot = Number(meta._tcSlot ?? -1);
+      if (!rowId) continue;
+      if (!map.has(rowId)) map.set(rowId, Array(photoSlots.length).fill(null));
+      const arr = map.get(rowId)!;
+      if (slot >= 0 && slot < photoSlots.length) arr[slot] = a;
+    }
+    return map;
+  }, [photoAttachments, photoSlots.length]);
 
   const filterCol = columns.find((c) => c.filter);
   const scenarioCol = columns.find((c) => c.group);
@@ -855,9 +888,11 @@ function TestCallTableView({ field }: { field: ReviewField }) {
 
   const shown = filter && filterCol ? rows.filter((r) => r[filterCol.key] === filter) : rows;
   const displayCols = columns.filter((c) => c.key !== "remark");
+  const scenAbbr = (s: string) => (/(\d+)/.exec(s ?? "")?.[1] ?? s);
+  const rowsWithPhotos = shown.filter((r) => (photosByRow.get(String(r._id ?? "")) ?? []).some(Boolean));
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       {filterCol && sectorValues.length > 0 && (
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Filter {filterCol.label}:</span>
@@ -902,6 +937,39 @@ function TestCallTableView({ field }: { field: ReviewField }) {
           </tbody>
         </table>
       </div>
+
+      {/* Foto per baris (mengikuti filter) */}
+      {rowsWithPhotos.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <span className="text-xs font-semibold text-muted-foreground">Dokumentasi Foto</span>
+          {rowsWithPhotos.map((row) => {
+            const rid = String(row._id ?? "");
+            const photos = photosByRow.get(rid) ?? [];
+            const title = `SCEN${scenAbbr(String(row.scenario ?? ""))}_SEC${row.sectorCell ?? ""} (${row.distance ?? ""}m)`;
+            return (
+              <div key={rid} className="rounded-md border">
+                <div className="border-b bg-muted px-2 py-1 text-xs font-semibold">{title}</div>
+                <div className="grid grid-cols-3 gap-2 p-2">
+                  {photoSlots.map((ps, slot) => {
+                    const att = photos[slot];
+                    return (
+                      <div key={ps.key} className="flex flex-col gap-1">
+                        <span className="text-[9px] font-semibold uppercase text-muted-foreground">{ps.label}</span>
+                        {att ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={`/api/proxy/tasks/attachments/${att.id}/file`} alt={ps.label} className="h-28 w-full rounded border object-cover" />
+                        ) : (
+                          <div className="flex h-28 items-center justify-center rounded border border-dashed text-[10px] text-muted-foreground">—</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

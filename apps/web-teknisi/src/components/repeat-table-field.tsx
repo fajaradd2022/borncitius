@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Plus, Trash2, Filter } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Plus, Trash2, Filter, Camera, Upload, Loader2, X } from "lucide-react";
+import { toast } from "sonner";
 
 export interface TableColumn {
   key: string;
@@ -17,35 +18,70 @@ export interface RemarkRule {
   minDl: number;
 }
 
+export interface PhotoSlot {
+  key: string;
+  label: string;
+}
+
+export interface RowAttachment {
+  id: string;
+  rowId: string;
+  slot: number;
+  url: string;
+}
+
 type Row = Record<string, string>;
 
+let _uid = 0;
+function newId(): string {
+  // Stabil cukup untuk sesi ini; server tetap simpan _id di JSON.
+  _uid += 1;
+  return `r${Date.now().toString(36)}${_uid.toString(36)}`;
+}
+
 /**
- * Editor tabel baris-berulang untuk TestCall SSV 5G.
- * - Tambah baris per scenario (tombol per grup scenario).
- * - Filter tampilan berdasarkan Sector/Cell.
- * - Kolom "remark" dihitung otomatis (Pass/Fail) dari DL Tput vs target scenario.
- * Nilai disimpan sebagai JSON string via onSave.
+ * Editor tabel baris-berulang TestCall 5G, dengan foto per baris.
+ * - Tambah baris per scenario (auto-suffix Sector/Cell: 1/01 → 1/01a → 1/01b).
+ * - Tiap baris punya slot foto (Speedtest/Youtube/Location) — upload/ambil foto.
+ * - Filter Sector/Cell menyembunyikan baris + fotonya sekaligus.
+ * - Remark otomatis Pass/Fail (DL Tput vs target scenario).
  */
 export function RepeatTableField({
   label,
   columns,
   remarkRules,
+  photoSlots,
   initialRows,
+  attachments,
   locked,
   onSave,
+  onUploadPhoto,
+  onDeletePhoto,
 }: {
   label: string;
   columns: TableColumn[];
   remarkRules: RemarkRule[];
+  photoSlots: PhotoSlot[];
   initialRows: Row[];
+  attachments: RowAttachment[];
   locked?: boolean;
   onSave: (rows: Row[]) => void;
+  onUploadPhoto: (rowId: string, slot: number, file: File) => Promise<void>;
+  onDeletePhoto: (attachmentId: string) => Promise<void>;
 }) {
-  const [rows, setRows] = useState<Row[]>(initialRows);
+  const [rows, setRows] = useState<Row[]>(() =>
+    initialRows.map((r) => ({ ...r, _id: r._id || newId() })),
+  );
   const [filter, setFilter] = useState<string>("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const pending = useRef<{ rowId: string; slot: number } | null>(null);
 
   const editableCols = columns.filter((c) => c.key !== "remark");
   const scenarioCol = columns.find((c) => c.group);
+  const filterCol = columns.find((c) => c.filter);
+
   const scenarios = useMemo(() => {
     const set = new Set<string>();
     rows.forEach((r) => scenarioCol && r[scenarioCol.key] && set.add(r[scenarioCol.key]));
@@ -53,42 +89,54 @@ export function RepeatTableField({
   }, [rows, scenarioCol]);
 
   const sectorValues = useMemo(() => {
-    const filterCol = columns.find((c) => c.filter);
     if (!filterCol) return [];
-    const set = new Set<string>();
-    rows.forEach((r) => r[filterCol.key] && set.add(r[filterCol.key]));
-    return Array.from(set);
-  }, [rows, columns]);
-  const filterCol = columns.find((c) => c.filter);
+    return Array.from(new Set(rows.map((r) => r[filterCol.key]).filter(Boolean)));
+  }, [rows, filterCol]);
 
   function commit(next: Row[]) {
     setRows(next);
     onSave(next);
   }
 
-  function updateCell(rowIdx: number, key: string, value: string) {
-    const next = rows.map((r, i) => (i === rowIdx ? { ...r, [key]: value } : r));
-    commit(next);
+  function updateCell(rowId: string, key: string, value: string) {
+    commit(rows.map((r) => (r._id === rowId ? { ...r, [key]: value } : r)));
+  }
+
+  // Auto-suffix Sector/Cell untuk baris tambahan: 1/01 → 1/01a → 1/01b …
+  function nextSectorName(base: string, scenario: string): string {
+    if (!base) return "";
+    const existing = new Set(
+      rows.filter((r) => scenarioCol && r[scenarioCol.key] === scenario).map((r) => (filterCol ? r[filterCol.key] : "")),
+    );
+    for (let i = 0; i < 26; i++) {
+      const cand = `${base}${String.fromCharCode(97 + i)}`;
+      if (!existing.has(cand)) return cand;
+    }
+    return `${base}_${Date.now().toString(36).slice(-3)}`;
   }
 
   function addRow(scenario: string) {
-    // Salin distance/target dari baris scenario yang sama bila ada.
     const sample = rows.find((r) => scenarioCol && r[scenarioCol.key] === scenario);
-    const newRow: Row = {};
+    const baseSector = filterCol && sample ? sample[filterCol.key] ?? "" : "";
+    const newRow: Row = { _id: newId() };
     editableCols.forEach((c) => {
-      newRow[c.key] = c.group ? scenario : c.key === "distance" || c.key === "target" ? sample?.[c.key] ?? "" : "";
+      if (c.group) newRow[c.key] = scenario;
+      else if (c.key === "distance" || c.key === "target") newRow[c.key] = sample?.[c.key] ?? "";
+      else if (filterCol && c.key === filterCol.key) newRow[c.key] = nextSectorName(baseSector, scenario);
+      else newRow[c.key] = "";
     });
-    // Sisipkan setelah baris terakhir scenario itu.
     let insertAt = rows.length;
     for (let i = rows.length - 1; i >= 0; i--) {
       if (scenarioCol && rows[i][scenarioCol.key] === scenario) { insertAt = i + 1; break; }
     }
-    const next = [...rows.slice(0, insertAt), newRow, ...rows.slice(insertAt)];
-    commit(next);
+    commit([...rows.slice(0, insertAt), newRow, ...rows.slice(insertAt)]);
   }
 
-  function deleteRow(rowIdx: number) {
-    commit(rows.filter((_, i) => i !== rowIdx));
+  function deleteRow(rowId: string) {
+    if (!window.confirm("Hapus baris ini beserta fotonya?")) return;
+    // Hapus foto baris tsb dulu (best-effort).
+    attachments.filter((a) => a.rowId === rowId).forEach((a) => void onDeletePhoto(a.id));
+    commit(rows.filter((r) => r._id !== rowId));
   }
 
   function computeRemark(row: Row): string {
@@ -98,22 +146,38 @@ export function RepeatTableField({
     return dl >= rule.minDl ? "Pass" : "Fail";
   }
 
+  function triggerUpload(rowId: string, slot: number, useCamera: boolean) {
+    pending.current = { rowId, slot };
+    (useCamera ? cameraRef : fileRef).current?.click();
+  }
+
+  async function handleFile(file: File) {
+    const p = pending.current;
+    pending.current = null;
+    if (!p) return;
+    setBusy(`${p.rowId}:${p.slot}`);
+    try {
+      await onUploadPhoto(p.rowId, p.slot, file);
+    } catch {
+      toast.error("Gagal mengunggah foto.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3">
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); e.target.value = ""; }} />
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); e.target.value = ""; }} />
+
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium">{label}</span>
         {filterCol && sectorValues.length > 0 && (
           <div className="flex items-center gap-1.5">
             <Filter className="size-3.5 text-zinc-400" />
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="h-8 rounded-lg border border-border bg-background px-2 text-xs"
-            >
+            <select value={filter} onChange={(e) => setFilter(e.target.value)} className="h-8 rounded-lg border border-border bg-background px-2 text-xs">
               <option value="">Semua {filterCol.label}</option>
-              {sectorValues.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
+              {sectorValues.map((s) => (<option key={s} value={s}>{s}</option>))}
             </select>
           </div>
         )}
@@ -121,76 +185,98 @@ export function RepeatTableField({
 
       {scenarios.map((scenario) => {
         const scenarioRows = rows
-          .map((r, idx) => ({ r, idx }))
-          .filter(({ r }) => scenarioCol && r[scenarioCol.key] === scenario)
-          .filter(({ r }) => !filter || (filterCol && r[filterCol.key] === filter));
+          .filter((r) => scenarioCol && r[scenarioCol.key] === scenario)
+          .filter((r) => !filter || (filterCol && r[filterCol.key] === filter));
         if (scenarioRows.length === 0 && filter) return null;
         return (
           <div key={scenario} className="rounded-xl border border-border">
             <div className="flex items-center justify-between border-b bg-muted/50 px-3 py-2">
               <span className="text-xs font-semibold">{scenario}</span>
               {!locked && (
-                <button
-                  type="button"
-                  onClick={() => addRow(scenario)}
-                  className="flex items-center gap-1 rounded-lg bg-primary px-2 py-1 text-xs font-semibold text-white active:opacity-90"
-                >
+                <button type="button" onClick={() => addRow(scenario)} className="flex items-center gap-1 rounded-lg bg-primary px-2 py-1 text-xs font-semibold text-white active:opacity-90">
                   <Plus className="size-3.5" /> Tambah Baris
                 </button>
               )}
             </div>
             <div className="flex flex-col divide-y">
-              {scenarioRows.map(({ r, idx }) => (
-                <div key={idx} className="flex flex-col gap-2 p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-zinc-500">
-                      {filterCol ? `${filterCol.label}: ${r[filterCol.key] || "—"}` : `Baris ${idx + 1}`}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <RemarkBadge remark={computeRemark(r)} />
-                      {!locked && (
-                        <button type="button" onClick={() => deleteRow(idx)} aria-label="Hapus baris" className="text-danger">
-                          <Trash2 className="size-4" />
-                        </button>
-                      )}
+              {scenarioRows.map((r) => {
+                const rowId = r._id;
+                return (
+                  <div key={rowId} className="flex flex-col gap-3 p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-zinc-500">
+                        {filterCol ? `${filterCol.label}: ${r[filterCol.key] || "—"}` : rowId}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <RemarkBadge remark={computeRemark(r)} />
+                        {!locked && (
+                          <button type="button" onClick={() => deleteRow(rowId)} aria-label="Hapus baris" className="text-danger">
+                            <Trash2 className="size-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {editableCols
-                      .filter((c) => !c.group)
-                      .map((c) => (
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {editableCols.filter((c) => !c.group).map((c) => (
                         <label key={c.key} className="flex flex-col gap-0.5">
                           <span className="text-[10px] uppercase tracking-wide text-zinc-400">{c.label}</span>
                           {c.type === "dropdown" ? (
-                            <select
-                              value={r[c.key] ?? ""}
-                              disabled={locked}
-                              onChange={(e) => updateCell(idx, c.key, e.target.value)}
-                              className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:bg-muted"
-                            >
+                            <select value={r[c.key] ?? ""} disabled={locked} onChange={(e) => updateCell(rowId, c.key, e.target.value)} className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:bg-muted">
                               <option value="">—</option>
-                              {(c.options ?? []).map((o) => (
-                                <option key={o} value={o}>{o}</option>
-                              ))}
+                              {(c.options ?? []).map((o) => (<option key={o} value={o}>{o}</option>))}
                             </select>
                           ) : (
-                            <input
-                              type={c.type === "number" ? "number" : "text"}
-                              inputMode={c.type === "number" ? "decimal" : undefined}
-                              value={r[c.key] ?? ""}
-                              disabled={locked}
-                              onChange={(e) => updateCell(idx, c.key, e.target.value)}
-                              className="h-9 rounded-lg border border-border px-2 text-sm outline-none focus:border-primary disabled:bg-muted"
-                            />
+                            <input type={c.type === "number" ? "number" : "text"} inputMode={c.type === "number" ? "decimal" : undefined} value={r[c.key] ?? ""} disabled={locked} onChange={(e) => updateCell(rowId, c.key, e.target.value)} className="h-9 rounded-lg border border-border px-2 text-sm outline-none focus:border-primary disabled:bg-muted" />
                           )}
                         </label>
                       ))}
+                    </div>
+
+                    {/* Slot foto per baris */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {photoSlots.map((ps, slot) => {
+                        const att = attachments.find((a) => a.rowId === rowId && a.slot === slot);
+                        const isBusy = busy === `${rowId}:${slot}`;
+                        return (
+                          <div key={ps.key} className="flex flex-col gap-1">
+                            <span className="text-[9px] font-semibold uppercase tracking-wide text-zinc-400">{ps.label}</span>
+                            {att ? (
+                              <div className="relative">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={att.url} alt={ps.label} className="h-24 w-full rounded-lg border object-cover" />
+                                {!locked && (
+                                  <button type="button" onClick={() => void onDeletePhoto(att.id)} aria-label="Hapus foto" className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-danger text-white">
+                                    <X className="size-3" />
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex h-24 flex-col items-center justify-center gap-1 rounded-lg border border-dashed">
+                                {isBusy ? (
+                                  <Loader2 className="size-4 animate-spin text-zinc-400" />
+                                ) : locked ? (
+                                  <span className="text-[10px] text-zinc-400">—</span>
+                                ) : (
+                                  <div className="flex gap-1">
+                                    <button type="button" onClick={() => triggerUpload(rowId, slot, true)} aria-label="Ambil foto" className="flex size-7 items-center justify-center rounded-md bg-primary text-white">
+                                      <Camera className="size-3.5" />
+                                    </button>
+                                    <button type="button" onClick={() => triggerUpload(rowId, slot, false)} aria-label="Upload foto" className="flex size-7 items-center justify-center rounded-md border">
+                                      <Upload className="size-3.5" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
-              {scenarioRows.length === 0 && (
-                <p className="p-3 text-xs text-zinc-400">Belum ada baris. Klik “Tambah Baris”.</p>
-              )}
+                );
+              })}
+              {scenarioRows.length === 0 && (<p className="p-3 text-xs text-zinc-400">Belum ada baris.</p>)}
             </div>
           </div>
         );
@@ -200,11 +286,6 @@ export function RepeatTableField({
 }
 
 function RemarkBadge({ remark }: { remark: string }) {
-  const cls =
-    remark === "Pass"
-      ? "bg-emerald-100 text-emerald-700"
-      : remark === "Fail"
-        ? "bg-red-100 text-red-700"
-        : "bg-zinc-100 text-zinc-500";
+  const cls = remark === "Pass" ? "bg-emerald-100 text-emerald-700" : remark === "Fail" ? "bg-red-100 text-red-700" : "bg-zinc-100 text-zinc-500";
   return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>{remark}</span>;
 }

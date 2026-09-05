@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, FileText, FileUp, Loader2, MapPin, Send, X } from "lucide-react";
 import { PhotoField } from "./photo-field";
-import { RepeatTableField, type TableColumn, type RemarkRule } from "./repeat-table-field";
+import { RepeatTableField, type TableColumn, type RemarkRule, type PhotoSlot, type RowAttachment } from "./repeat-table-field";
 import { SyncIndicator } from "./sync-indicator";
 import { AttachmentLightbox, type LightboxItem } from "./ui/attachment-lightbox";
 import { drainQueue, enqueue, itemsForTask } from "@/lib/offline-queue";
@@ -15,6 +15,7 @@ export interface FormAttachment {
   id: string;
   originalName: string;
   mimeType: string;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface FormField {
@@ -40,6 +41,12 @@ export interface FormTask {
 }
 
 const ATTACHMENT_TYPES = ["photo", "file", "signed_document"];
+
+const DEFAULT_PHOTO_SLOTS: PhotoSlot[] = [
+  { key: "speedtest", label: "SPEEDTEST" },
+  { key: "youtube", label: "YOUTUBE/DETIK" },
+  { key: "location", label: "LOCATION" },
+];
 
 /** Parse nilai repeat_table (string JSON) → array baris; fallback ke defaultRows. */
 function parseRows(value: string | null, options: unknown): Record<string, string>[] {
@@ -147,9 +154,48 @@ export function TaskForm({ task }: { task: FormTask }) {
     }
   }
 
+  // --- TestCall: foto tertaut ke baris tabel ---
+  // Bila ada field repeat_table, satu field photo menjadi "gudang foto" yang
+  // dikelola dari dalam tabel (bukan ditampilkan sebagai field foto biasa).
+  const repeatField = task.fields.find((f) => f.fieldType === "repeat_table");
+  const docPhotoField = repeatField
+    ? task.fields.find((f) => f.fieldType === "photo")
+    : undefined;
+
+  const photoAttachments: RowAttachment[] = (docPhotoField?.attachments ?? []).map((a) => {
+    const meta = (a.metadata ?? {}) as Record<string, unknown>;
+    return {
+      id: a.id,
+      rowId: typeof meta._tcRowId === "string" ? meta._tcRowId : "",
+      slot: Number(meta._tcSlot ?? -1),
+      url: `/api/proxy/tasks/attachments/${a.id}/file`,
+    };
+  });
+
+  async function uploadRowPhoto(rowId: string, slot: number, file: File) {
+    if (!docPhotoField) return;
+    const form = new FormData();
+    form.append("file", file);
+    form.append("type", "photo_uploaded");
+    form.append("watermark", JSON.stringify({ _tcRowId: rowId, _tcSlot: slot }));
+    const res = await fetch(
+      `/api/proxy/tasks/${task.id}/fields/${docPhotoField.id}/attachments`,
+      { method: "POST", body: form },
+    );
+    if (!res.ok) throw new Error("upload gagal");
+    router.refresh();
+  }
+
+  async function deleteRowPhoto(attId: string) {
+    if (!docPhotoField) return;
+    await fetch(`/api/proxy/tasks/${task.id}/fields/${docPhotoField.id}/attachments/${attId}`, { method: "DELETE" });
+    router.refresh();
+  }
+
   const sections = new Map<string, FormField[]>();
   for (const f of task.fields) {
     if (f.fieldType === "section") continue;
+    if (docPhotoField && f.id === docPhotoField.id) continue; // dikelola dari tabel
     const list = sections.get(f.section) ?? [];
     list.push(f);
     sections.set(f.section, list);
@@ -211,13 +257,17 @@ export function TaskForm({ task }: { task: FormTask }) {
                       label={field.label + (field.isRequired ? " *" : "")}
                       columns={(((field.options as Record<string, unknown>)?.columns) as TableColumn[]) ?? []}
                       remarkRules={(((field.options as Record<string, unknown>)?.remarkRules) as RemarkRule[]) ?? []}
+                      photoSlots={(((field.options as Record<string, unknown>)?.photoSlots) as PhotoSlot[]) ?? DEFAULT_PHOTO_SLOTS}
                       initialRows={parseRows(field.value, field.options)}
+                      attachments={photoAttachments}
                       locked={locked}
                       onSave={(rows) => {
                         const json = JSON.stringify(rows);
                         setValues((v) => ({ ...v, [field.id]: json }));
                         saveField(field.id, json);
                       }}
+                      onUploadPhoto={(rowId, slot, file) => uploadRowPhoto(rowId, slot, file)}
+                      onDeletePhoto={(attId) => deleteRowPhoto(attId)}
                     />
                   ) : ATTACHMENT_TYPES.includes(field.fieldType) ? (
                     field.fieldType === "photo" ? (

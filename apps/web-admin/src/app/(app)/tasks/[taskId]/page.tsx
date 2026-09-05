@@ -28,6 +28,7 @@ interface ApiTask {
       originalName: string;
       mimeType: string;
       syncStatus: "pending" | "synced" | "failed";
+      watermarkMetadata?: unknown;
     }>;
   }>;
 }
@@ -67,7 +68,13 @@ export default async function TaskDetailPage({
           reviewStatus: f.reviewStatus,
           rejectComment: f.rejectComment ?? undefined,
           lastEditedBy: f.lastEditedBy ?? undefined,
-          attachments: f.attachments,
+          attachments: f.attachments.map((a) => ({
+            id: a.id,
+            originalName: a.originalName,
+            mimeType: a.mimeType,
+            syncStatus: a.syncStatus,
+            metadata: (a.watermarkMetadata ?? null) as Record<string, unknown> | null,
+          })),
         })),
       }}
     />
