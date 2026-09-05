@@ -228,10 +228,19 @@ export class WorkflowService {
     const task = await this.loadTask(taskId);
     this.assertCanReview(user, task);
 
+    // TestCall: bila ada field repeat_table, field photo & repeat_table dikelola
+    // sebagai satu kesatuan di dalam tabel (bukan approve per-field). Kecualikan
+    // dari syarat "semua field disetujui" agar approve-all tidak terkunci.
+    const hasRepeat = await this.prisma.taskInstanceField.count({
+      where: { taskInstanceId: taskId, fieldType: 'repeat_table' },
+    });
+    const excludedTypes: Array<'section' | 'photo' | 'repeat_table'> =
+      hasRepeat > 0 ? ['section', 'photo', 'repeat_table'] : ['section'];
+
     const pending = await this.prisma.taskInstanceField.count({
       where: {
         taskInstanceId: taskId,
-        fieldType: { not: 'section' },
+        fieldType: { notIn: excludedTypes },
         reviewStatus: { not: 'approved' },
       },
     });

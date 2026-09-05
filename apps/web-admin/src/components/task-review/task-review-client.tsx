@@ -196,7 +196,9 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
   );
   const allApproved =
     reviewableFields.length > 0 &&
-    reviewableFields.every((f) => f.reviewStatus === "approved");
+    reviewableFields
+      .filter((f) => !docPhotoFieldIds.has(f.id) && f.fieldType !== "repeat_table")
+      .every((f) => f.reviewStatus === "approved");
   const anyRejected = reviewableFields.some((f) => f.reviewStatus === "rejected");
   const isFinal = task.status === "approved";
 
@@ -416,12 +418,17 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
   const sections = useMemo(() => {
     const map = new Map<string, ReviewField[]>();
     for (const f of task.fields) {
+      // Field foto yang dikelola tabel disembunyikan → jangan bikin section kosong.
+      if (docPhotoFieldIds.has(f.id)) continue;
       const list = map.get(f.section) ?? [];
       list.push(f);
       map.set(f.section, list);
     }
-    return Array.from(map.entries());
-  }, [task.fields]);
+    // Buang section yang isinya hanya header (tidak ada field non-section).
+    return Array.from(map.entries()).filter(([, list]) =>
+      list.some((f) => f.fieldType !== "section"),
+    );
+  }, [task.fields, docPhotoFieldIds]);
 
   return (
     <>
