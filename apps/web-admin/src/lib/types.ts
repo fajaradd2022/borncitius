@@ -235,6 +235,8 @@ export interface LayoutBlock {
   // type: "photo-page"
   caption?: string;
   captionPosition?: "above" | "below";
+  /** Bila true, satu halaman memuat DUA foto (2 row) seperti form BAST. */
+  twoUp?: boolean;
   pageHeader?: {
     show: boolean;
     leftText: string;

@@ -146,6 +146,13 @@ export class PdfService {
       }
     };
 
+    // State untuk mode foto "2-up" (dua foto per halaman, seperti form BAST).
+    // twoUpSlot: 0 = slot atas (memicu header+note & hitung geometri), 1 = bawah.
+    let twoUpSlot = 0;
+    let twoUpBoxH = 0; // tinggi kotak foto tiap slot
+    const TWO_UP_CAP_H = 20; // tinggi kotak caption
+    const TWO_UP_GAP = 12; // jarak antar unit
+
     const sorted = [...blocks].sort((a, b) => a.orderIndex - b.orderIndex);
 
     for (const block of sorted) {
@@ -308,20 +315,105 @@ export class PdfService {
         }
 
         case 'photo_page': {
+          const cfg = block.config ?? {};
+          const bClr = colorOf(bd?.color);
+          const bW = bd?.width ?? 1;
+          const caption = block.caption ?? block.label;
           const photo = block.attachments?.[0];
+
+          // ---- MODE 2-UP: dua foto per halaman (form BAST) ----
+          if (cfg.twoUp) {
+            const header = cfg.pageHeader as { show?: boolean; leftText?: string; rightText?: string } | undefined;
+            const noteText = typeof cfg.noteText === 'string' ? cfg.noteText : '';
+
+            const drawImageInBox = (boxTopY: number, boxH: number) => {
+              // kotak foto
+              page.drawRectangle({ x: MARGIN, y: boxTopY - boxH, width: contentWidth, height: boxH, borderColor: bClr, borderWidth: bW });
+              return (async () => {
+                if (photo) {
+                  try {
+                    const embedded = await this.embedImage(doc, photo);
+                    if (embedded) {
+                      // contain: rasio asli dipertahankan, tanpa stretch/crop.
+                      const pad = 4;
+                      const scale = Math.min((contentWidth - pad * 2) / embedded.width, (boxH - pad * 2) / embedded.height);
+                      const w = embedded.width * scale;
+                      const h = embedded.height * scale;
+                      page.drawImage(embedded, { x: MARGIN + (contentWidth - w) / 2, y: boxTopY - boxH + (boxH - h) / 2, width: w, height: h });
+                      return;
+                    }
+                  } catch (err) {
+                    this.logger.warn(`Gagal menyisipkan foto "${caption}": ${String(err)}`);
+                  }
+                }
+                const msg = photo ? '[foto tidak dapat dimuat]' : '[foto belum diunggah]';
+                const mw = italic.widthOfTextAtSize(msg, 10);
+                page.drawText(msg, { x: MARGIN + (contentWidth - mw) / 2, y: boxTopY - boxH / 2, size: 10, font: italic, color: rgb(0.5, 0.5, 0.5) });
+              })();
+            };
+
+            const drawCaptionBox = (topY: number) => {
+              page.drawRectangle({ x: MARGIN, y: topY - TWO_UP_CAP_H, width: contentWidth, height: TWO_UP_CAP_H, borderColor: bClr, borderWidth: bW });
+              const cw = bold.widthOfTextAtSize(caption, 11);
+              page.drawText(caption, { x: MARGIN + (contentWidth - cw) / 2, y: topY - 14, size: 11, font: bold });
+            };
+
+            if (twoUpSlot === 0) {
+              // Slot atas: mulai halaman baru, gambar header + note, hitung geometri.
+              startFreshPage();
+
+              // Header grid 1fr:2fr (kiri store multi-line, kanan judul).
+              if (header?.show) {
+                const leftLines = String(header.leftText ?? '').split('\n').filter((l) => l.length > 0);
+                const boxH = Math.max(44, 16 + leftLines.length * 12);
+                const leftW = contentWidth / 3;
+                const rightW = contentWidth - leftW;
+                const top = y;
+                page.drawRectangle({ x: MARGIN, y: top - boxH, width: leftW, height: boxH, borderColor: bClr, borderWidth: bW });
+                leftLines.forEach((ln, i) => page.drawText(ln, { x: MARGIN + 6, y: top - 16 - i * 12, size: 9, font: bold }));
+                page.drawRectangle({ x: MARGIN + leftW, y: top - boxH, width: rightW, height: boxH, borderColor: bClr, borderWidth: bW });
+                const rtLines = wrapText(String(header.rightText ?? ''), bold, 11, rightW - 12);
+                const startY = top - boxH / 2 + (rtLines.length * 12) / 2 - 8;
+                rtLines.forEach((ln, i) => {
+                  const w = bold.widthOfTextAtSize(ln, 11);
+                  page.drawText(ln, { x: MARGIN + leftW + (rightW - w) / 2, y: startY - i * 12, size: 11, font: bold });
+                });
+                y = top - boxH - 8;
+              }
+              if (noteText) {
+                writeStyled(noteText, { size: 10, f: bold, align: 'center', gap: 8 });
+              }
+
+              // Hitung tinggi kotak foto tiap slot dari sisa ruang untuk 2 unit.
+              const avail = y - MARGIN;
+              twoUpBoxH = Math.max(80, (avail - 2 * TWO_UP_CAP_H - TWO_UP_GAP) / 2);
+
+              // Unit 1 (atas)
+              const boxTop = y;
+              await drawImageInBox(boxTop, twoUpBoxH);
+              drawCaptionBox(boxTop - twoUpBoxH);
+              y = boxTop - twoUpBoxH - TWO_UP_CAP_H - TWO_UP_GAP;
+              twoUpSlot = 1;
+            } else {
+              // Slot bawah: pakai geometri yang sudah dihitung, tanpa header ulang.
+              const boxTop = y;
+              await drawImageInBox(boxTop, twoUpBoxH);
+              drawCaptionBox(boxTop - twoUpBoxH);
+              y = boxTop - twoUpBoxH - TWO_UP_CAP_H - TWO_UP_GAP;
+              twoUpSlot = 0;
+            }
+            break;
+          }
+          // ---- MODE 1-UP (default): satu foto per halaman ----
           // Setiap halaman foto dimulai di halaman sendiri — tapi jika halaman
           // aktif masih kosong (mis. tepat setelah page_break), pakai halaman
           // itu agar tidak muncul halaman kosong.
           startFreshPage();
 
-          const caption = block.caption ?? block.label;
-          const cfg = block.config ?? {};
           const header = cfg.pageHeader as { show?: boolean; leftText?: string; rightText?: string } | undefined;
           const captionPos = cfg.captionPosition === 'above' ? 'above' : 'below';
           const noteText = typeof cfg.noteText === 'string' ? cfg.noteText : '';
           const notePos = cfg.notePosition === 'above' ? 'above' : 'below';
-          const bClr = colorOf(bd?.color);
-          const bW = bd?.width ?? 1;
 
           // Header foto: grid 1fr:2fr (kiri store multi-line, kanan judul) —
           // meniru tampilan builder. Tinggi menyesuaikan jumlah baris kiri.

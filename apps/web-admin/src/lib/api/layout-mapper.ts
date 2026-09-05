@@ -41,7 +41,7 @@ const CONFIG_KEYS = [
   "tableMode", "columns", "rows", "emptyRows", "headerBgColor", "headerTextColor",
   "caption", "captionPosition", "pageHeader", "noteText", "notePosition",
   "showLogo", "companyName", "reportTitle", "showReferenceNumber",
-  "showPageNumber", "footerNote",
+  "showPageNumber", "footerNote", "twoUp",
 ] as const;
 
 export function toBuilderBlocks(blocks: ApiLayoutBlock[]): LayoutBlock[] {
