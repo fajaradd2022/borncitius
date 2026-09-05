@@ -287,7 +287,10 @@ class DocumentsController {
           const n = scenAbbr(String(r.scenario ?? ''));
           const cell = String(r.sectorCell ?? '');
           const dist = String(r.distance ?? '');
-          return { title: `SCEN${n}_SEC${cell} (${dist}m) ${siteInfo.siteId ?? ''}`.trim(), photos };
+          const siteTag = siteInfo.siteId && siteInfo.siteName
+            ? `${siteInfo.siteId}_${siteInfo.siteName}`
+            : (siteInfo.siteId ?? '');
+          return { title: `SCEN${n}_SEC${cell} (${dist}m) ${siteTag}`.trim(), photos };
         })
         .filter((u): u is { title: string; photos: Array<{ absolutePath: string; mimeType: string } | null> } => u !== null);
 
@@ -295,7 +298,7 @@ class DocumentsController {
       blocks.push({ type: 'test_info_table', label: 'TEST INFORMATION', orderIndex: ord++, displayStyle: null, config: {}, tableData: { columns, rows, remarkRules }, siteInfo });
       blocks.push({ type: 'test_result_table', label: 'TEST RESULTS', orderIndex: ord++, displayStyle: null, config: {}, tableData: { columns, rows, remarkRules }, siteInfo });
       if (photoUnits.length > 0) {
-        blocks.push({ type: 'photo_grid_3', label: 'Dokumentasi Foto', orderIndex: ord++, displayStyle: null, config: {}, border: { outer: true, inner: true, width: 1, color: '#000000' }, photoGrid: photoUnits });
+        blocks.push({ type: 'photo_grid_3', label: 'Dokumentasi Foto', orderIndex: ord++, displayStyle: null, config: {}, border: { outer: true, inner: true, width: 1, color: '#000000' }, photoGrid: photoUnits, siteInfo });
       }
     }
 

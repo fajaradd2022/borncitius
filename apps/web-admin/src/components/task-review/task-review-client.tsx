@@ -643,7 +643,11 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
                           </div>
                         )
                       ) : field.fieldType === "repeat_table" ? (
-                        <TestCallTableView field={field} photoAttachments={docPhotoAttachments} />
+                        <TestCallTableView
+                          field={field}
+                          photoAttachments={docPhotoAttachments}
+                          onOpenPhoto={(items, startIndex) => setLightbox({ items, startIndex })}
+                        />
                       ) : hasAttachments && field.attachments && field.attachments.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
                           {field.attachments.map((att) => (
@@ -841,7 +845,7 @@ interface TableColumnDef {
  * Tampilan read-only tabel test-call untuk reviewer, dengan filter Sector/Cell.
  * Remark dihitung otomatis (Pass/Fail) dari DL Tput vs target scenario.
  */
-function TestCallTableView({ field, photoAttachments = [] }: { field: ReviewField; photoAttachments?: ReviewAttachment[] }) {
+function TestCallTableView({ field, photoAttachments = [], onOpenPhoto }: { field: ReviewField; photoAttachments?: ReviewAttachment[]; onOpenPhoto?: (items: LightboxItem[], startIndex: number) => void }) {
   const opts = (field.options ?? {}) as {
     columns?: TableColumnDef[];
     remarkRules?: { scenario: string; minDl: number }[];
@@ -986,14 +990,25 @@ function TestCallTableView({ field, photoAttachments = [] }: { field: ReviewFiel
                 <div className="grid grid-cols-3 gap-2 p-2">
                   {photoSlots.map((ps, slot) => {
                     const att = photos[slot];
+                    // Item lightbox untuk sektor ini (foto yg tersedia saja).
+                    const sectorItems: LightboxItem[] = photos
+                      .map((a, si) => (a ? { id: a.id, url: `/api/proxy/tasks/attachments/${a.id}/file`, alt: `${title} — ${photoSlots[si]?.label ?? ""}` } : null))
+                      .filter((x): x is LightboxItem => x !== null);
                     return (
                       <div key={ps.key} className="flex flex-col gap-1">
                         <span className="text-[9px] font-semibold uppercase text-muted-foreground">{ps.label}</span>
                         {att ? (
-                          <a href={`/api/proxy/tasks/attachments/${att.id}/file`} target="_blank" rel="noreferrer">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const idx = sectorItems.findIndex((it) => it.id === att.id);
+                              onOpenPhoto?.(sectorItems, idx < 0 ? 0 : idx);
+                            }}
+                            className="block"
+                          >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={`/api/proxy/tasks/attachments/${att.id}/file`} alt={ps.label} className="h-28 w-full rounded border object-cover transition hover:opacity-90" />
-                          </a>
+                            <img src={`/api/proxy/tasks/attachments/${att.id}/file`} alt={ps.label} className="h-28 w-full cursor-zoom-in rounded border object-cover transition hover:opacity-90" />
+                          </button>
                         ) : (
                           <div className="flex h-28 items-center justify-center rounded border border-dashed text-[10px] text-muted-foreground">—</div>
                         )}

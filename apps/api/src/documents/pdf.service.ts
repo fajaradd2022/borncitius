@@ -178,17 +178,32 @@ export class PdfService {
       switch (block.type) {
         case 'header': {
           const cfg = block.config ?? {};
-          write(String(cfg.companyName ?? 'Born Citius'), 16, bold, 4);
-          write(String(cfg.reportTitle ?? ctx.title), 12, font, 4);
-          if (cfg.showReferenceNumber) write(`No. Ref: ${ctx.referenceNumber}`, 9, font, 10);
-          ensureSpace(14);
-          page.drawLine({
-            start: { x: MARGIN, y },
-            end: { x: A4.width - MARGIN, y },
-            thickness: 0.8,
-            color: rgb(0.7, 0.7, 0.7),
-          });
-          y -= 14;
+          // Header dua-sisi meniru contoh: kiri "NOKIA" (biru), kanan "Surge".
+          const company = String(cfg.companyName ?? 'Born Citius');
+          const parts = company.split('—').map((s) => s.trim());
+          const leftBrand = parts[0] || 'NOKIA';
+          const rightBrand = parts[1] || '';
+          const top = y;
+          page.drawText(leftBrand, { x: MARGIN, y: top - 16, size: 18, font: bold, color: rgb(0.07, 0.29, 0.65) });
+          if (rightBrand) {
+            const rw = bold.widthOfTextAtSize(rightBrand, 18);
+            page.drawText(rightBrand, { x: A4.width - MARGIN - rw, y: top - 16, size: 18, font: bold, color: rgb(0.12, 0.2, 0.5) });
+          }
+          y -= 24;
+          // Judul laporan (opsional, di tengah)
+          const rt = String(cfg.reportTitle ?? ctx.title);
+          if (rt) {
+            const rtLines = wrapText(rt, font, 11, contentWidth);
+            rtLines.forEach((ln) => {
+              const w = font.widthOfTextAtSize(ln, 11);
+              page.drawText(ln, { x: MARGIN + (contentWidth - w) / 2, y: y - 11, size: 11, font, color: rgb(0.2, 0.2, 0.2) });
+              y -= 14;
+            });
+          }
+          if (cfg.showReferenceNumber) { write(`No. Ref: ${ctx.referenceNumber}`, 9, font, 6); }
+          ensureSpace(12);
+          page.drawLine({ start: { x: MARGIN, y }, end: { x: A4.width - MARGIN, y }, thickness: 0.8, color: rgb(0.7, 0.7, 0.7) });
+          y -= 12;
           break;
         }
 
@@ -522,35 +537,36 @@ export class PdfService {
 
           // Definisi kolom per jenis tabel (meniru contoh customer).
           const infoCols = [
-            { key: 'scenario', header: 'Scenario', w: 13 },
+            { key: 'scenario', header: 'Scenario', w: 12 },
             { key: 'distance', header: 'Distance to BTS (mtr)', w: 13 },
             { key: 'target', header: 'Target (Mbps)', w: 10 },
-            { key: 'sectorCell', header: 'Sector/Cell', w: 10 },
-            { key: 'position', header: 'Position', w: 11 },
-            { key: 'testLocationCategory', header: 'Test Location Category', w: 21 },
-            { key: 'latitude', header: 'Latitude', w: 11 },
-            { key: 'longitude', header: 'Longitude', w: 11 },
+            { key: 'sectorCell', header: 'Sector/Cell', w: 9 },
+            { key: 'position', header: 'Position', w: 10 },
+            { key: 'testLocationCategory', header: 'Test Location Category', w: 22 },
+            { key: 'latitude', header: 'Latitude', w: 12 },
+            { key: 'longitude', header: 'Longitude', w: 12 },
           ];
           const resultCols = [
-            { key: 'scenario', header: 'Scenario', w: 10 },
-            { key: 'distance', header: 'Distance (mtr)', w: 9 },
-            { key: 'target', header: 'Target', w: 7 },
-            { key: 'sectorCell', header: 'Sector/Cell', w: 8 },
-            { key: 'dlTput', header: 'DL Tput', w: 8 },
-            { key: 'ulTput', header: 'UL Tput', w: 8 },
-            { key: 'pci', header: 'PCI', w: 6 },
-            { key: 'rsrpIndoor', header: 'RSRP In', w: 7 },
-            { key: 'rsrpOutdoor', header: 'RSRP Out', w: 7 },
-            { key: 'sinr', header: 'SINR', w: 6 },
-            { key: 'rsrq', header: 'RSRQ', w: 6 },
-            { key: 'jitter', header: 'Jitter', w: 5 },
-            { key: 'latency', header: 'Latency', w: 6 },
-            { key: 'remark', header: 'Remark', w: 7 },
+            { key: 'scenario', header: 'Scenario', w: 9 },
+            { key: 'distance', header: 'Distance to BTS (mtr)', w: 9 },
+            { key: 'target', header: 'Target (Mbps)', w: 7 },
+            { key: 'sectorCell', header: 'Sector/Cell', w: 7 },
+            { key: 'dlTput', header: 'DL Tput (Mbps)', w: 8 },
+            { key: 'ulTput', header: 'UL Tput (Mbps)', w: 8 },
+            { key: 'pci', header: 'PCI', w: 5 },
+            { key: 'rsrpIndoor', header: 'Indoor', w: 7, group: 'RSRP (dBm)' },
+            { key: 'rsrpOutdoor', header: 'Outdoor', w: 7, group: 'RSRP (dBm)' },
+            { key: 'sinr', header: 'SINR (dB)', w: 6 },
+            { key: 'rsrq', header: 'RSRQ (dB)', w: 6 },
+            { key: 'jitter', header: 'Jitter (ms)', w: 5 },
+            { key: 'latency', header: 'Latency (ms)', w: 6 },
+            { key: 'remark', header: 'Remark', w: 6 },
           ];
           const cols = isResult ? resultCols : infoCols;
           const totalW = cols.reduce((s, c) => s + c.w, 0);
           const colW = cols.map((c) => (c.w / totalW) * contentWidth);
           const bClr = rgb(0.4, 0.4, 0.4);
+          const hdrBg = rgb(0.20, 0.45, 0.62);
 
           const computeRemark = (row: Record<string, unknown>): string => {
             const rule = rules.find((r) => r.scenario === row.scenario);
@@ -560,24 +576,63 @@ export class PdfService {
           };
 
           const rowH = 15;
-          const headerH = isResult ? 26 : 18;
-          // Header baris
+          // Header dua-tingkat bila ada kolom ber-group (mis. RSRP Indoor/Outdoor).
+          const groups = cols.map((c) => (c as { group?: string }).group);
+          const hasGroups = groups.some(Boolean);
+          const tier1H = 12; // baris super-header (RSRP)
+          const baseHdrH = isResult ? 24 : 18;
+          const headerH = baseHdrH + (hasGroups ? tier1H : 0);
+
           const drawHeader = () => {
             ensureSpace(headerH);
-            let x = MARGIN;
             const top = y;
+            let x = MARGIN;
             cols.forEach((c, i) => {
-              page.drawRectangle({ x, y: top - headerH, width: colW[i], height: headerH, color: rgb(0.20, 0.45, 0.62) });
-              page.drawRectangle({ x, y: top - headerH, width: colW[i], height: headerH, borderColor: bClr, borderWidth: 0.5 });
-              const hs = 6;
-              const lines = wrapText(c.header, bold, hs, colW[i] - 4);
-              const startY = top - headerH / 2 + (lines.length * (hs + 1)) / 2 - hs + 1;
-              lines.forEach((ln, li) => {
-                const w = bold.widthOfTextAtSize(ln, hs);
-                page.drawText(ln, { x: x + (colW[i] - w) / 2, y: startY - li * (hs + 1), size: hs, font: bold, color: rgb(1, 1, 1) });
-              });
+              const grp = (c as { group?: string }).group;
+              if (hasGroups && grp) {
+                // Sel super-header digambar sekali (span) — lihat blok di bawah;
+                // di sini gambar hanya sub-header di tier bawah.
+                page.drawRectangle({ x, y: top - headerH, width: colW[i], height: baseHdrH, color: hdrBg });
+                page.drawRectangle({ x, y: top - headerH, width: colW[i], height: baseHdrH, borderColor: bClr, borderWidth: 0.5 });
+                const hs = 6;
+                const w = bold.widthOfTextAtSize(c.header, hs);
+                page.drawText(c.header, { x: x + (colW[i] - w) / 2, y: top - headerH + baseHdrH / 2 - hs / 2 + 1, size: hs, font: bold, color: rgb(1, 1, 1) });
+              } else {
+                // Kolom biasa mengisi seluruh tinggi header (tier1 + base).
+                page.drawRectangle({ x, y: top - headerH, width: colW[i], height: headerH, color: hdrBg });
+                page.drawRectangle({ x, y: top - headerH, width: colW[i], height: headerH, borderColor: bClr, borderWidth: 0.5 });
+                const hs = 6;
+                const lines = wrapText(c.header, bold, hs, colW[i] - 3);
+                const startY = top - headerH / 2 + (lines.length * (hs + 1)) / 2 - hs + 1;
+                lines.forEach((ln, li) => {
+                  const w = bold.widthOfTextAtSize(ln, hs);
+                  page.drawText(ln, { x: x + (colW[i] - w) / 2, y: startY - li * (hs + 1), size: hs, font: bold, color: rgb(1, 1, 1) });
+                });
+              }
               x += colW[i];
             });
+            // Super-header spans untuk kolom ber-group (mis. "RSRP (dBm)").
+            if (hasGroups) {
+              let gx = MARGIN;
+              let i = 0;
+              while (i < cols.length) {
+                const grp = (cols[i] as { group?: string }).group;
+                if (grp) {
+                  let spanW = 0;
+                  let j = i;
+                  while (j < cols.length && (cols[j] as { group?: string }).group === grp) { spanW += colW[j]; j++; }
+                  page.drawRectangle({ x: gx, y: top - tier1H, width: spanW, height: tier1H, color: hdrBg });
+                  page.drawRectangle({ x: gx, y: top - tier1H, width: spanW, height: tier1H, borderColor: bClr, borderWidth: 0.5 });
+                  const w = bold.widthOfTextAtSize(grp, 6.5);
+                  page.drawText(grp, { x: gx + (spanW - w) / 2, y: top - tier1H / 2 - 2, size: 6.5, font: bold, color: rgb(1, 1, 1) });
+                  for (let k = i; k < j; k++) gx += colW[k];
+                  i = j;
+                } else {
+                  gx += colW[i];
+                  i++;
+                }
+              }
+            }
             y -= headerH;
           };
           drawHeader();
@@ -612,7 +667,24 @@ export class PdfService {
             prevTarget = String(row.target ?? '');
             y -= rowH;
           }
-          y -= 10;
+          y -= 8;
+
+          // Notes hanya di bawah TEST RESULTS (meniru contoh customer).
+          if (isResult) {
+            const notesLines = [
+              'Notes:',
+              '• Test points All Scenario and sector tests are already achieved with target',
+              '    o  Scenario 1 Near 100m > 315 Mbps',
+              '    o  Scenario 2 Middle 300m > 150 Mbps',
+              '    o  Scenario 3 Far 500m > 50 Mbps',
+              '• Indoor Test point can be done in: Restaurant (Warteg), Mosque, Minimart (Indomaret, Alfamart, etc)',
+            ];
+            ensureSpace(notesLines.length * 11 + 6);
+            notesLines.forEach((ln, i) => {
+              page.drawText(ln, { x: MARGIN, y: y - 9 - i * 11, size: i === 0 ? 8 : 7.5, font: i === 0 ? bold : font, color: rgb(0.1, 0.1, 0.1) });
+            });
+            y -= notesLines.length * 11 + 6;
+          }
           break;
         }
 
@@ -623,22 +695,40 @@ export class PdfService {
           const colHeaders = ['SPEEDTEST', 'YOUTUBE/DETIK', 'LOCATION'];
           const bClr = colorOf(bd?.color);
           const bW = bd?.width ?? 1;
+          const gridHdrBg = rgb(0.20, 0.45, 0.62);
+          const siteTag = (block.siteInfo?.siteId && block.siteInfo?.siteName)
+            ? `${block.siteInfo.siteId}_${block.siteInfo.siteName}`
+            : (block.siteInfo?.siteId ?? '');
           for (const unit of units) {
-            // Perkiraan tinggi 1 unit: judul(16) + header kolom(16) + foto(160).
-            const titleH = 16, colHdrH = 16, photoH = 150;
+            // Tinggi 1 unit: judul(16) + header kolom(15) + foto(220 portrait).
+            const titleH = 16, colHdrH = 15, photoH = 235;
             if (y - (titleH + colHdrH + photoH) < MARGIN) startFreshPage();
             const top = y;
-            // Judul unit (banner)
-            page.drawRectangle({ x: MARGIN, y: top - titleH, width: contentWidth, height: titleH, color: rgb(0.85, 0.9, 0.95), borderColor: bClr, borderWidth: bW });
-            const tw = bold.widthOfTextAtSize(unit.title, 9);
-            page.drawText(unit.title, { x: MARGIN + (contentWidth - tw) / 2, y: top - 11, size: 9, font: bold });
-            // Header 3 kolom
+            // Judul unit (banner) — bagian site di-highlight kuning spt contoh.
+            page.drawRectangle({ x: MARGIN, y: top - titleH, width: contentWidth, height: titleH, color: rgb(0.87, 0.91, 0.95), borderColor: bClr, borderWidth: bW });
+            const baseTitle = siteTag && unit.title.endsWith(siteTag)
+              ? unit.title.slice(0, unit.title.length - siteTag.length).trimEnd()
+              : unit.title;
+            const ts = 10;
+            const baseW = bold.widthOfTextAtSize(baseTitle + ' ', ts);
+            const siteW = siteTag ? bold.widthOfTextAtSize(siteTag, ts) : 0;
+            const totalTW = baseW + siteW;
+            let tx = MARGIN + (contentWidth - totalTW) / 2;
+            const tyText = top - 11;
+            page.drawText(baseTitle, { x: tx, y: tyText, size: ts, font: bold, color: rgb(0, 0, 0) });
+            tx += baseW;
+            if (siteTag) {
+              // kotak highlight kuning
+              page.drawRectangle({ x: tx - 1, y: tyText - 2, width: siteW + 2, height: ts + 3, color: rgb(1, 0.93, 0.2) });
+              page.drawText(siteTag, { x: tx, y: tyText, size: ts, font: bold, color: rgb(0, 0, 0) });
+            }
+            // Header 3 kolom — biru medium, teks putih (spt contoh)
             const cw = contentWidth / 3;
             const hdrY = top - titleH;
             colHeaders.forEach((h, i) => {
-              page.drawRectangle({ x: MARGIN + i * cw, y: hdrY - colHdrH, width: cw, height: colHdrH, color: rgb(0.93, 0.95, 0.98), borderColor: bClr, borderWidth: bW });
-              const w = bold.widthOfTextAtSize(h, 8);
-              page.drawText(h, { x: MARGIN + i * cw + (cw - w) / 2, y: hdrY - 11, size: 8, font: bold });
+              page.drawRectangle({ x: MARGIN + i * cw, y: hdrY - colHdrH, width: cw, height: colHdrH, color: gridHdrBg, borderColor: bClr, borderWidth: bW });
+              const w = bold.widthOfTextAtSize(h, 9);
+              page.drawText(h, { x: MARGIN + i * cw + (cw - w) / 2, y: hdrY - 10.5, size: 9, font: bold, color: rgb(1, 1, 1) });
             });
             // 3 kotak foto
             const photoY = hdrY - colHdrH;
