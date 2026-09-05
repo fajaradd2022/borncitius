@@ -15,10 +15,10 @@ import {
 import { Type } from 'class-transformer';
 
 export class SaveFieldValueDto {
-  /** Nilai field disimpan sebagai string; parsing tipe dilakukan saat render dokumen. */
+  /** Nilai field disimpan sebagai string (untuk repeat_table: JSON ter-stringify). */
   @IsOptional()
   @IsString()
-  @MaxLength(10_000)
+  @MaxLength(200_000)
   value?: string;
 }
 

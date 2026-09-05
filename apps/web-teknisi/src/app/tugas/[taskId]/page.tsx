@@ -15,6 +15,7 @@ interface ApiTask {
     section: string;
     isRequired: boolean;
     value: unknown;
+    options: unknown;
     reviewStatus: "pending" | "approved" | "rejected";
     rejectComment: string | null;
     attachments: Array<{ id: string; originalName: string; mimeType: string }>;
@@ -48,7 +49,8 @@ export default async function IsiTugasPage({
       fieldType: f.fieldType,
       section: f.section,
       isRequired: f.isRequired,
-      value: typeof f.value === "string" ? f.value : null,
+      value: typeof f.value === "string" ? f.value : f.value != null ? JSON.stringify(f.value) : null,
+      options: f.options ?? null,
       reviewStatus: f.reviewStatus,
       rejectComment: f.rejectComment,
       attachments: f.attachments,

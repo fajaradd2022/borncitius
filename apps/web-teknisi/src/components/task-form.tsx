@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, FileText, FileUp, Loader2, MapPin, Send, X } from "lucide-react";
 import { PhotoField } from "./photo-field";
+import { RepeatTableField, type TableColumn, type RemarkRule } from "./repeat-table-field";
 import { SyncIndicator } from "./sync-indicator";
 import { AttachmentLightbox, type LightboxItem } from "./ui/attachment-lightbox";
 import { drainQueue, enqueue, itemsForTask } from "@/lib/offline-queue";
@@ -23,6 +24,7 @@ export interface FormField {
   section: string;
   isRequired: boolean;
   value: string | null;
+  options?: unknown;
   reviewStatus: "pending" | "approved" | "rejected";
   rejectComment?: string | null;
   attachments: FormAttachment[];
@@ -38,6 +40,21 @@ export interface FormTask {
 }
 
 const ATTACHMENT_TYPES = ["photo", "file", "signed_document"];
+
+/** Parse nilai repeat_table (string JSON) → array baris; fallback ke defaultRows. */
+function parseRows(value: string | null, options: unknown): Record<string, string>[] {
+  if (value && value.trim().startsWith("[")) {
+    try {
+      const p = JSON.parse(value);
+      if (Array.isArray(p)) return p as Record<string, string>[];
+    } catch {
+      /* abaikan */
+    }
+  }
+  const opts = options as Record<string, unknown> | null;
+  const def = opts?.defaultRows;
+  return Array.isArray(def) ? (def as Record<string, string>[]) : [];
+}
 
 export function TaskForm({ task }: { task: FormTask }) {
   const router = useRouter();
@@ -189,7 +206,20 @@ export function TaskForm({ task }: { task: FormTask }) {
                     </p>
                   )}
 
-                  {ATTACHMENT_TYPES.includes(field.fieldType) ? (
+                  {field.fieldType === "repeat_table" ? (
+                    <RepeatTableField
+                      label={field.label + (field.isRequired ? " *" : "")}
+                      columns={(((field.options as Record<string, unknown>)?.columns) as TableColumn[]) ?? []}
+                      remarkRules={(((field.options as Record<string, unknown>)?.remarkRules) as RemarkRule[]) ?? []}
+                      initialRows={parseRows(field.value, field.options)}
+                      locked={locked}
+                      onSave={(rows) => {
+                        const json = JSON.stringify(rows);
+                        setValues((v) => ({ ...v, [field.id]: json }));
+                        saveField(field.id, json);
+                      }}
+                    />
+                  ) : ATTACHMENT_TYPES.includes(field.fieldType) ? (
                     field.fieldType === "photo" ? (
                       <PhotoField
                         taskId={task.id}

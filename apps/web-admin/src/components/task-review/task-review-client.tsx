@@ -57,6 +57,7 @@ export interface ReviewField {
   orderIndex: number;
   isRequired: boolean;
   value: string | null;
+  options?: unknown;
   reviewStatus: ReviewStatus;
   rejectComment?: string;
   lastEditedBy?: string;
@@ -617,6 +618,8 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
                             </Button>
                           </div>
                         )
+                      ) : field.fieldType === "repeat_table" ? (
+                        <TestCallTableView field={field} />
                       ) : hasAttachments && field.attachments && field.attachments.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
                           {field.attachments.map((att) => (
@@ -802,3 +805,104 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
     </>
   );
 }
+
+interface TableColumnDef {
+  key: string;
+  label: string;
+  group?: boolean;
+  filter?: boolean;
+}
+
+/**
+ * Tampilan read-only tabel test-call untuk reviewer, dengan filter Sector/Cell.
+ * Remark dihitung otomatis (Pass/Fail) dari DL Tput vs target scenario.
+ */
+function TestCallTableView({ field }: { field: ReviewField }) {
+  const opts = (field.options ?? {}) as {
+    columns?: TableColumnDef[];
+    remarkRules?: { scenario: string; minDl: number }[];
+    defaultRows?: Record<string, string>[];
+  };
+  const columns = opts.columns ?? [];
+  const remarkRules = opts.remarkRules ?? [];
+  const [filter, setFilter] = useState("");
+
+  const rows = useMemo<Record<string, string>[]>(() => {
+    if (field.value && field.value.trim().startsWith("[")) {
+      try {
+        const p = JSON.parse(field.value);
+        if (Array.isArray(p)) return p as Record<string, string>[];
+      } catch {
+        /* ignore */
+      }
+    }
+    return opts.defaultRows ?? [];
+  }, [field.value, opts.defaultRows]);
+
+  const filterCol = columns.find((c) => c.filter);
+  const scenarioCol = columns.find((c) => c.group);
+  const sectorValues = useMemo(() => {
+    if (!filterCol) return [];
+    return Array.from(new Set(rows.map((r) => r[filterCol.key]).filter(Boolean)));
+  }, [rows, filterCol]);
+
+  const computeRemark = (row: Record<string, string>): string => {
+    const rule = remarkRules.find((r) => scenarioCol && r.scenario === row[scenarioCol.key]);
+    const dl = Number(row.dlTput);
+    if (!rule || !row.dlTput || !isFinite(dl)) return "-";
+    return dl >= rule.minDl ? "Pass" : "Fail";
+  };
+
+  const shown = filter && filterCol ? rows.filter((r) => r[filterCol.key] === filter) : rows;
+  const displayCols = columns.filter((c) => c.key !== "remark");
+
+  return (
+    <div className="flex flex-col gap-2">
+      {filterCol && sectorValues.length > 0 && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Filter {filterCol.label}:</span>
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="h-7 rounded border bg-background px-2 text-xs"
+          >
+            <option value="">Semua</option>
+            {sectorValues.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <span className="text-xs text-muted-foreground">({shown.length} baris)</span>
+        </div>
+      )}
+      <div className="overflow-x-auto rounded-md border">
+        <table className="w-full border-collapse text-[11px]">
+          <thead>
+            <tr className="bg-muted">
+              {displayCols.map((c) => (
+                <th key={c.key} className="border px-1.5 py-1 text-left font-semibold">{c.label}</th>
+              ))}
+              <th className="border px-1.5 py-1 text-left font-semibold">Remark</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((row, i) => {
+              const remark = computeRemark(row);
+              return (
+                <tr key={i} className="odd:bg-background even:bg-muted/30">
+                  {displayCols.map((c) => (
+                    <td key={c.key} className="border px-1.5 py-1">{row[c.key] ?? ""}</td>
+                  ))}
+                  <td className={cn("border px-1.5 py-1 font-semibold", remark === "Pass" ? "text-emerald-600" : remark === "Fail" ? "text-destructive" : "text-muted-foreground")}>{remark}</td>
+                </tr>
+              );
+            })}
+            {shown.length === 0 && (
+              <tr><td colSpan={displayCols.length + 1} className="px-2 py-3 text-center text-muted-foreground">Belum ada data.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+

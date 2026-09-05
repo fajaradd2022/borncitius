@@ -19,6 +19,7 @@ interface ApiTask {
     orderIndex: number;
     isRequired: boolean;
     value: unknown;
+    options: unknown;
     reviewStatus: "pending" | "approved" | "rejected";
     rejectComment: string | null;
     lastEditedBy: string | null;
@@ -62,6 +63,7 @@ export default async function TaskDetailPage({
           orderIndex: f.orderIndex,
           isRequired: f.isRequired,
           value: typeof f.value === "string" ? f.value : f.value == null ? null : JSON.stringify(f.value),
+          options: f.options ?? null,
           reviewStatus: f.reviewStatus,
           rejectComment: f.rejectComment ?? undefined,
           lastEditedBy: f.lastEditedBy ?? undefined,

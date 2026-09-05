@@ -101,7 +101,7 @@ class DocumentsController {
     // pageHeader.leftText/rightText). Kita resolusi secara rekursif dangkal.
     const resolveConfig = (cfg: Record<string, unknown>): Record<string, unknown> => {
       const out: Record<string, unknown> = { ...cfg };
-      for (const key of ['caption', 'footerNote', 'content', 'noteText']) {
+      for (const key of ['caption', 'footerNote', 'content', 'noteText', 'reportTitle', 'companyName']) {
         if (typeof out[key] === 'string') out[key] = resolvePlaceholders(out[key]);
       }
       if (out.pageHeader && typeof out.pageHeader === 'object') {
@@ -221,10 +221,21 @@ class DocumentsController {
       const remarkRules = Array.isArray(opts.remarkRules)
         ? (opts.remarkRules as Array<{ scenario: string; minDl: number }>)
         : [];
-      // value = array baris; fallback ke defaultRows bila belum diisi.
+      // value = array baris (bisa tersimpan sbg string JSON dari form teknisi).
       const rawVal = repeatField.value;
-      const rows = Array.isArray(rawVal)
-        ? (rawVal as Array<Record<string, unknown>>)
+      let parsedRows: Array<Record<string, unknown>> = [];
+      if (Array.isArray(rawVal)) {
+        parsedRows = rawVal as Array<Record<string, unknown>>;
+      } else if (typeof rawVal === 'string' && rawVal.trim().startsWith('[')) {
+        try {
+          const p = JSON.parse(rawVal);
+          if (Array.isArray(p)) parsedRows = p as Array<Record<string, unknown>>;
+        } catch {
+          /* abaikan JSON tak valid */
+        }
+      }
+      const rows = parsedRows.length
+        ? parsedRows
         : Array.isArray(opts.defaultRows)
           ? (opts.defaultRows as Array<Record<string, unknown>>)
           : [];
