@@ -82,7 +82,7 @@ export class PdfService {
   async render(
     blocks: RenderBlock[],
     ctx: RenderContext,
-    opts: { stampPageNumbers?: boolean } = {},
+    opts: { stampPageNumbers?: boolean; headerReserve?: number } = {},
   ): Promise<Buffer> {
     const doc = await PDFDocument.create();
     doc.setTitle(ctx.title);
@@ -93,14 +93,18 @@ export class PdfService {
     const italic = await doc.embedFont(StandardFonts.HelveticaOblique);
     const boldItalic = await doc.embedFont(StandardFonts.HelveticaBoldOblique);
 
+    // Ruang atas yang dicadangkan untuk header per-halaman (digambar di compose()).
+    const headerReserve = opts.headerReserve ?? 0;
+    const topY = A4.height - MARGIN - headerReserve;
+
     let page = doc.addPage([A4.width, A4.height]);
-    let y = A4.height - MARGIN;
+    let y = topY;
     const contentWidth = A4.width - MARGIN * 2;
 
     const ensureSpace = (needed: number): void => {
       if (y - needed < MARGIN) {
         page = doc.addPage([A4.width, A4.height]);
-        y = A4.height - MARGIN;
+        y = topY;
       }
     };
 
@@ -155,11 +159,11 @@ export class PdfService {
     // Dipakai agar page_break dan photo_page tidak menambah halaman kosong
     // ketika halaman aktif memang masih kosong (mis. page_break tepat sebelum
     // photo_page — keduanya ingin memulai halaman baru, cukup satu).
-    const pageIsFresh = (): boolean => y === A4.height - MARGIN;
+    const pageIsFresh = (): boolean => y === topY;
     const startFreshPage = (): void => {
       if (!pageIsFresh()) {
         page = doc.addPage([A4.width, A4.height]);
-        y = A4.height - MARGIN;
+        y = topY;
       }
     };
 
@@ -178,58 +182,9 @@ export class PdfService {
 
       switch (block.type) {
         case 'header': {
-          const cfg = block.config ?? {};
-          const top = y;
-          const logoH = 26; // tinggi logo maksimum
-          let drewLogo = false;
-          // Embed logo asli bila tersedia (Nokia kiri, Surge kanan).
-          const embedLogo = async (file: string): Promise<{ img: import('pdf-lib').PDFImage; w: number; h: number } | null> => {
-            try {
-              const buf = await readFile(join(process.cwd(), 'assets', 'logos', file));
-              const img = await doc.embedPng(buf);
-              const scale = logoH / img.height;
-              return { img, w: img.width * scale, h: img.height * scale };
-            } catch {
-              return null;
-            }
-          };
-          const nokia = await embedLogo('nokia.png');
-          const surge = await embedLogo('surge.png');
-          if (nokia) {
-            page.drawImage(nokia.img, { x: MARGIN, y: top - nokia.h, width: nokia.w, height: nokia.h });
-            drewLogo = true;
-          }
-          if (surge) {
-            page.drawImage(surge.img, { x: A4.width - MARGIN - surge.w, y: top - surge.h, width: surge.w, height: surge.h });
-            drewLogo = true;
-          }
-          if (drewLogo) {
-            y -= logoH + 6;
-          } else {
-            // Fallback teks bila aset logo tidak ada.
-            const company = String(cfg.companyName ?? 'Born Citius');
-            const parts = company.split('—').map((s) => s.trim());
-            page.drawText(parts[0] || 'NOKIA', { x: MARGIN, y: top - 16, size: 18, font: bold, color: rgb(0.07, 0.29, 0.65) });
-            if (parts[1]) {
-              const rw = bold.widthOfTextAtSize(parts[1], 18);
-              page.drawText(parts[1], { x: A4.width - MARGIN - rw, y: top - 16, size: 18, font: bold, color: rgb(0.12, 0.2, 0.5) });
-            }
-            y -= 24;
-          }
-          // Judul laporan (opsional, di tengah)
-          const rt = String(cfg.reportTitle ?? ctx.title);
-          if (rt) {
-            const rtLines = wrapText(rt, font, 11, contentWidth);
-            rtLines.forEach((ln) => {
-              const w = font.widthOfTextAtSize(ln, 11);
-              page.drawText(ln, { x: MARGIN + (contentWidth - w) / 2, y: y - 11, size: 11, font, color: rgb(0.2, 0.2, 0.2) });
-              y -= 14;
-            });
-          }
-          if (cfg.showReferenceNumber) { write(`No. Ref: ${ctx.referenceNumber}`, 9, font, 6); }
-          ensureSpace(12);
-          page.drawLine({ start: { x: MARGIN, y }, end: { x: A4.width - MARGIN, y }, thickness: 0.8, color: rgb(0.7, 0.7, 0.7) });
-          y -= 12;
+          // Header digambar per-halaman oleh compose() (drawHeaderOnPage), agar
+          // muncul di SETIAP halaman. Di sini tidak menggambar apa pun; ruang
+          // atas sudah dicadangkan lewat headerReserve.
           break;
         }
 
@@ -715,8 +670,9 @@ export class PdfService {
         }
 
         case 'photo_grid_3': {
-          // Grid foto per sektor: judul + 3 kolom (Speedtest / Youtube-Detik /
-          // Location), satu unit per sektor. Foto contain (rasio asli).
+          // Grid foto per sektor: SATU sektor = SATU halaman penuh.
+          // Judul + 3 kolom (Speedtest / Youtube-Detik / Location), foto besar
+          // memanjang (contain, rasio asli).
           const units = block.photoGrid ?? [];
           const colHeaders = ['SPEEDTEST', 'YOUTUBE/DETIK', 'LOCATION'];
           const bClr = colorOf(bd?.color);
@@ -726,26 +682,27 @@ export class PdfService {
             ? `${block.siteInfo.siteId}_${block.siteInfo.siteName}`
             : (block.siteInfo?.siteId ?? '');
           for (const unit of units) {
-            // Tinggi 1 unit: judul(16) + header kolom(15) + foto(220 portrait).
-            const titleH = 16, colHdrH = 15, photoH = 235;
-            if (y - (titleH + colHdrH + photoH) < MARGIN) startFreshPage();
+            // Tiap sektor menempati satu halaman penuh sendiri.
+            startFreshPage();
+            const titleH = 18, colHdrH = 16;
             const top = y;
+            // Foto memenuhi sisa tinggi halaman (dari bawah header kolom s/d margin).
+            const photoH = top - titleH - colHdrH - MARGIN;
             // Judul unit (banner) — bagian site di-highlight kuning spt contoh.
             page.drawRectangle({ x: MARGIN, y: top - titleH, width: contentWidth, height: titleH, color: rgb(0.87, 0.91, 0.95), borderColor: bClr, borderWidth: bW });
             const unitSiteTag = unit.siteTag ?? siteTag;
             const baseTitle = unit.title;
-            const ts = 10;
-            const baseW = bold.widthOfTextAtSize(baseTitle + ' ', ts);
-            const siteW = unitSiteTag ? bold.widthOfTextAtSize(unitSiteTag, ts) : 0;
+            const tsz = 11;
+            const baseW = bold.widthOfTextAtSize(baseTitle + ' ', tsz);
+            const siteW = unitSiteTag ? bold.widthOfTextAtSize(unitSiteTag, tsz) : 0;
             const totalTW = baseW + siteW;
             let tx = MARGIN + (contentWidth - totalTW) / 2;
-            const tyText = top - 11;
-            page.drawText(baseTitle, { x: tx, y: tyText, size: ts, font: bold, color: rgb(0, 0, 0) });
+            const tyText = top - 13;
+            page.drawText(baseTitle, { x: tx, y: tyText, size: tsz, font: bold, color: rgb(0, 0, 0) });
             tx += baseW;
             if (unitSiteTag) {
-              // kotak highlight kuning
-              page.drawRectangle({ x: tx - 1, y: tyText - 2, width: siteW + 2, height: ts + 3, color: rgb(1, 0.93, 0.2) });
-              page.drawText(unitSiteTag, { x: tx, y: tyText, size: ts, font: bold, color: rgb(0, 0, 0) });
+              page.drawRectangle({ x: tx - 1, y: tyText - 2, width: siteW + 2, height: tsz + 3, color: rgb(1, 0.93, 0.2) });
+              page.drawText(unitSiteTag, { x: tx, y: tyText, size: tsz, font: bold, color: rgb(0, 0, 0) });
             }
             // Header 3 kolom — biru medium, teks putih (spt contoh)
             const cw = contentWidth / 3;
@@ -753,9 +710,9 @@ export class PdfService {
             colHeaders.forEach((h, i) => {
               page.drawRectangle({ x: MARGIN + i * cw, y: hdrY - colHdrH, width: cw, height: colHdrH, color: gridHdrBg, borderColor: bClr, borderWidth: bW });
               const w = bold.widthOfTextAtSize(h, 9);
-              page.drawText(h, { x: MARGIN + i * cw + (cw - w) / 2, y: hdrY - 10.5, size: 9, font: bold, color: rgb(1, 1, 1) });
+              page.drawText(h, { x: MARGIN + i * cw + (cw - w) / 2, y: hdrY - 11, size: 9, font: bold, color: rgb(1, 1, 1) });
             });
-            // 3 kotak foto
+            // 3 kotak foto besar (memenuhi tinggi halaman)
             const photoY = hdrY - colHdrH;
             for (let i = 0; i < 3; i++) {
               const cellX = MARGIN + i * cw;
@@ -765,7 +722,7 @@ export class PdfService {
                 try {
                   const embedded = await this.embedImage(doc, ph);
                   if (embedded) {
-                    const pad = 3;
+                    const pad = 4;
                     const scale = Math.min((cw - pad * 2) / embedded.width, (photoH - pad * 2) / embedded.height);
                     const w = embedded.width * scale;
                     const h = embedded.height * scale;
@@ -776,7 +733,7 @@ export class PdfService {
                 }
               }
             }
-            y = photoY - photoH - 12;
+            y = photoY - photoH;
           }
           break;
         }
@@ -862,6 +819,10 @@ export class PdfService {
   async compose(blocks: RenderBlock[], ctx: RenderContext): Promise<Buffer> {
     const sorted = [...blocks].sort((a, b) => a.orderIndex - b.orderIndex);
 
+    // Header (bila ada) digambar di SETIAP halaman; cadangkan ruang atas.
+    const headerBlock = sorted.find((b) => b.type === 'header');
+    const HEADER_H = headerBlock ? 44 : 0; // tinggi area header per halaman
+
     // Bangun daftar unit sesuai urutan: segmen render + lampiran.
     type Unit =
       | { kind: 'render'; blocks: RenderBlock[] }
@@ -897,13 +858,18 @@ export class PdfService {
     for (const unit of units) {
       if (unit.kind === 'render') {
         // Render segmen ini (tanpa stamping nomor halaman — dilakukan di akhir).
-        const segPdf = await this.render(unit.blocks, ctx, { stampPageNumbers: false });
+        const segPdf = await this.render(unit.blocks, ctx, { stampPageNumbers: false, headerReserve: HEADER_H });
         const segDoc = await PDFDocument.load(segPdf);
         const pages = await out.copyPages(segDoc, segDoc.getPageIndices());
         pages.forEach((p) => out.addPage(p));
       } else {
         await this.appendAttachmentA4(out, unit.block);
       }
+    }
+
+    // Gambar HEADER di setiap halaman (logo Nokia kiri + Surge kanan).
+    if (headerBlock) {
+      await this.drawHeaderAllPages(out);
     }
 
     // Stamping nomor halaman untuk SELURUH dokumen bila footer memintanya.
@@ -927,6 +893,47 @@ export class PdfService {
     }
 
     return Buffer.from(await out.save());
+  }
+
+  /**
+   * Menggambar header (logo Nokia kiri + Surge kanan) di SETIAP halaman dokumen.
+   * Nokia dibuat sedikit lebih besar & proporsional terhadap Surge (tinggi
+   * berbeda agar bobot visual seimbang). Fallback teks bila aset tak ada.
+   */
+  private async drawHeaderAllPages(out: PDFDocument): Promise<void> {
+    const loadLogo = async (file: string) => {
+      try {
+        const buf = await readFile(join(process.cwd(), 'assets', 'logos', file));
+        return await out.embedPng(buf);
+      } catch {
+        return null;
+      }
+    };
+    const nokiaImg = await loadLogo('nokia.png');
+    const surgeImg = await loadLogo('surge.png');
+
+    // Tinggi target tiap logo (Nokia sedikit lebih besar agar proporsional).
+    const NOKIA_H = 22;
+    const SURGE_H = 26;
+    const topPad = 18; // jarak dari tepi atas ke logo
+    const bold = !nokiaImg || !surgeImg ? await out.embedFont(StandardFonts.HelveticaBold) : null;
+
+    for (const p of out.getPages()) {
+      const pageTop = A4.height - topPad;
+      if (nokiaImg) {
+        const w = (nokiaImg.width / nokiaImg.height) * NOKIA_H;
+        p.drawImage(nokiaImg, { x: MARGIN, y: pageTop - NOKIA_H, width: w, height: NOKIA_H });
+      } else if (bold) {
+        p.drawText('NOKIA', { x: MARGIN, y: pageTop - 16, size: 16, font: bold, color: rgb(0.07, 0.29, 0.65) });
+      }
+      if (surgeImg) {
+        const w = (surgeImg.width / surgeImg.height) * SURGE_H;
+        p.drawImage(surgeImg, { x: A4.width - MARGIN - w, y: pageTop - SURGE_H, width: w, height: SURGE_H });
+      } else if (bold) {
+        const rw = bold.widthOfTextAtSize('Surge', 16);
+        p.drawText('Surge', { x: A4.width - MARGIN - rw, y: pageTop - 16, size: 16, font: bold, color: rgb(0.12, 0.2, 0.5) });
+      }
+    }
   }
 
   /**
