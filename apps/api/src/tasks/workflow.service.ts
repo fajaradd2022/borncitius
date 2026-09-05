@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma, TaskInstance } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import type { TaskInstance } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
 
@@ -70,10 +71,27 @@ export class WorkflowService {
       throw new ForbiddenException('Field ini sudah disetujui dan terkunci.');
     }
 
+    // Nilai dikirim sebagai string. Untuk field terstruktur (repeat_table) string
+    // berisi JSON array/objek — parse dulu agar tersimpan sebagai JSON asli di
+    // kolom Json (bukan string ter-escape / double-encoded).
+    let toStore: Prisma.InputJsonValue | typeof Prisma.JsonNull = Prisma.JsonNull;
+    if (value != null) {
+      const t = value.trim();
+      if (t.startsWith('[') || t.startsWith('{')) {
+        try {
+          toStore = JSON.parse(t) as Prisma.InputJsonValue;
+        } catch {
+          toStore = value; // bukan JSON valid — simpan apa adanya
+        }
+      } else {
+        toStore = value;
+      }
+    }
+
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.taskInstanceField.update({
         where: { id: fieldId },
-        data: { value: (value ?? null) as Prisma.InputJsonValue },
+        data: { value: toStore },
         select: { id: true, value: true, reviewStatus: true },
       });
 

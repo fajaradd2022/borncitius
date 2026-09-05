@@ -59,7 +59,7 @@ export interface RenderBlock {
   /** Konteks site (Site ID / Site Name) untuk header blok test-call. */
   siteInfo?: { siteId?: string; siteName?: string };
   /** Grid foto per sektor (test-call): daftar unit {title, photos[3]}. */
-  photoGrid?: Array<{ title: string; photos: Array<{ absolutePath: string; mimeType: string } | null> }>;
+  photoGrid?: Array<{ title: string; siteTag?: string; photos: Array<{ absolutePath: string; mimeType: string } | null> }>;
 }
 
 export interface RenderContext {
@@ -732,21 +732,20 @@ export class PdfService {
             const top = y;
             // Judul unit (banner) — bagian site di-highlight kuning spt contoh.
             page.drawRectangle({ x: MARGIN, y: top - titleH, width: contentWidth, height: titleH, color: rgb(0.87, 0.91, 0.95), borderColor: bClr, borderWidth: bW });
-            const baseTitle = siteTag && unit.title.endsWith(siteTag)
-              ? unit.title.slice(0, unit.title.length - siteTag.length).trimEnd()
-              : unit.title;
+            const unitSiteTag = unit.siteTag ?? siteTag;
+            const baseTitle = unit.title;
             const ts = 10;
             const baseW = bold.widthOfTextAtSize(baseTitle + ' ', ts);
-            const siteW = siteTag ? bold.widthOfTextAtSize(siteTag, ts) : 0;
+            const siteW = unitSiteTag ? bold.widthOfTextAtSize(unitSiteTag, ts) : 0;
             const totalTW = baseW + siteW;
             let tx = MARGIN + (contentWidth - totalTW) / 2;
             const tyText = top - 11;
             page.drawText(baseTitle, { x: tx, y: tyText, size: ts, font: bold, color: rgb(0, 0, 0) });
             tx += baseW;
-            if (siteTag) {
+            if (unitSiteTag) {
               // kotak highlight kuning
               page.drawRectangle({ x: tx - 1, y: tyText - 2, width: siteW + 2, height: ts + 3, color: rgb(1, 0.93, 0.2) });
-              page.drawText(siteTag, { x: tx, y: tyText, size: ts, font: bold, color: rgb(0, 0, 0) });
+              page.drawText(unitSiteTag, { x: tx, y: tyText, size: ts, font: bold, color: rgb(0, 0, 0) });
             }
             // Header 3 kolom — biru medium, teks putih (spt contoh)
             const cw = contentWidth / 3;

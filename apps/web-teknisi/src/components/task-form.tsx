@@ -48,16 +48,15 @@ const DEFAULT_PHOTO_SLOTS: PhotoSlot[] = [
   { key: "location", label: "LOCATION" },
 ];
 
-/** Parse nilai repeat_table (string JSON) → array baris; fallback ke defaultRows. */
+/** Parse nilai repeat_table (string JSON, bisa double-encoded) → array baris. */
 function parseRows(value: string | null, options: unknown): Record<string, string>[] {
-  if (value && value.trim().startsWith("[")) {
-    try {
-      const p = JSON.parse(value);
-      if (Array.isArray(p)) return p as Record<string, string>[];
-    } catch {
-      /* abaikan */
-    }
+  let v: unknown = value;
+  for (let i = 0; i < 3 && typeof v === "string"; i++) {
+    const t = v.trim();
+    if (!(t.startsWith("[") || t.startsWith('"'))) break;
+    try { v = JSON.parse(t); } catch { break; }
   }
+  if (Array.isArray(v)) return v as Record<string, string>[];
   const opts = options as Record<string, unknown> | null;
   const def = opts?.defaultRows;
   return Array.isArray(def) ? (def as Record<string, string>[]) : [];

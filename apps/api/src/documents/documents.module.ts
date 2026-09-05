@@ -221,19 +221,21 @@ class DocumentsController {
       const remarkRules = Array.isArray(opts.remarkRules)
         ? (opts.remarkRules as Array<{ scenario: string; minDl: number }>)
         : [];
-      // value = array baris (bisa tersimpan sbg string JSON dari form teknisi).
+      // value = array baris. Bisa tersimpan sebagai: array langsung, string JSON,
+      // atau DOUBLE-encoded (JSON string di dalam kolom Json). Decode bertingkat.
       const rawVal = repeatField.value;
       let parsedRows: Array<Record<string, unknown>> = [];
-      if (Array.isArray(rawVal)) {
-        parsedRows = rawVal as Array<Record<string, unknown>>;
-      } else if (typeof rawVal === 'string' && rawVal.trim().startsWith('[')) {
-        try {
-          const p = JSON.parse(rawVal);
-          if (Array.isArray(p)) parsedRows = p as Array<Record<string, unknown>>;
-        } catch {
-          /* abaikan JSON tak valid */
+      const tryParse = (v: unknown, depth = 0): void => {
+        if (depth > 3) return;
+        if (Array.isArray(v)) { parsedRows = v as Array<Record<string, unknown>>; return; }
+        if (typeof v === 'string') {
+          const t = v.trim();
+          if (t.startsWith('[') || t.startsWith('"')) {
+            try { tryParse(JSON.parse(t), depth + 1); } catch { /* abaikan */ }
+          }
         }
-      }
+      };
+      tryParse(rawVal);
       const rows = parsedRows.length
         ? parsedRows
         : Array.isArray(opts.defaultRows)
@@ -249,9 +251,11 @@ class DocumentsController {
       // metadata { _tcRowId, _tcSlot } untuk menautkannya ke baris tabel.
       // Unit dibangun mengikuti URUTAN baris tabel; tiap unit punya 3 slot
       // (speedtest/youtube/location). Judul = "SCEN{n}_SEC{cell} ({distance}m)".
-      const photoField = task.fields.find(
-        (f) => templateFields.find((t) => t.label === f.label)?.fieldType === 'photo',
-      );
+      // Kumpulkan attachment dari SEMUA field photo (task lama punya banyak field
+      // photo; foto tertaut ke baris via metadata _tcRowId, bukan per-field).
+      // Gunakan fieldType milik field TASK (bukan template) karena template bisa
+      // sudah berubah (mis. dulu 18 field photo, sekarang 1).
+      const photoFieldsAll = task.fields.filter((f) => f.fieldType === 'photo');
       const slotDefs = Array.isArray(opts.photoSlots)
         ? (opts.photoSlots as Array<{ key: string; label: string }>)
         : [{ key: 'speedtest', label: 'SPEEDTEST' }, { key: 'youtube', label: 'YOUTUBE/DETIK' }, { key: 'location', label: 'LOCATION' }];
@@ -260,18 +264,20 @@ class DocumentsController {
       // Peta rowId -> [attachment per slot].
       const attByRow = new Map<string, Array<{ absolutePath: string; mimeType: string } | null>>();
       const attNoRow: Array<{ absolutePath: string; mimeType: string }> = [];
-      for (const a of photoField?.attachments ?? []) {
-        const meta = (a.watermarkMetadata ?? {}) as Record<string, unknown>;
-        const rowId = typeof meta._tcRowId === 'string' ? meta._tcRowId : '';
-        const slot = Number(meta._tcSlot);
-        const item = { absolutePath: this.storage.absolutePathFor(a.storagePath), mimeType: a.mimeType };
-        if (rowId) {
-          if (!attByRow.has(rowId)) attByRow.set(rowId, Array<{ absolutePath: string; mimeType: string } | null>(nSlots).fill(null));
-          const arr = attByRow.get(rowId)!;
-          if (isFinite(slot) && slot >= 0 && slot < nSlots) arr[slot] = item;
-          else arr.push(item);
-        } else {
-          attNoRow.push(item);
+      for (const pf of photoFieldsAll) {
+        for (const a of pf.attachments ?? []) {
+          const meta = (a.watermarkMetadata ?? {}) as Record<string, unknown>;
+          const rowId = typeof meta._tcRowId === 'string' ? meta._tcRowId : '';
+          const slot = Number(meta._tcSlot);
+          const item = { absolutePath: this.storage.absolutePathFor(a.storagePath), mimeType: a.mimeType };
+          if (rowId) {
+            if (!attByRow.has(rowId)) attByRow.set(rowId, Array<{ absolutePath: string; mimeType: string } | null>(nSlots).fill(null));
+            const arr = attByRow.get(rowId)!;
+            if (isFinite(slot) && slot >= 0 && slot < nSlots) arr[slot] = item;
+            else arr.push(item);
+          } else {
+            attNoRow.push(item);
+          }
         }
       }
 
@@ -290,9 +296,9 @@ class DocumentsController {
           const siteTag = siteInfo.siteId && siteInfo.siteName
             ? `${siteInfo.siteId}_${siteInfo.siteName}`
             : (siteInfo.siteId ?? '');
-          return { title: `SCEN${n}_SEC${cell} (${dist}m) ${siteTag}`.trim(), photos };
+          return { title: `SCEN${n}_SEC${cell} (${dist}m)`, siteTag, photos };
         })
-        .filter((u): u is { title: string; photos: Array<{ absolutePath: string; mimeType: string } | null> } => u !== null);
+        .filter((u): u is { title: string; siteTag: string; photos: Array<{ absolutePath: string; mimeType: string } | null> } => u !== null);
 
       let ord = 1000;
       blocks.push({ type: 'test_info_table', label: 'TEST INFORMATION', orderIndex: ord++, displayStyle: null, config: {}, tableData: { columns, rows, remarkRules }, siteInfo });

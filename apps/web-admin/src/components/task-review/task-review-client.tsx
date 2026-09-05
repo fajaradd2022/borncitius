@@ -862,14 +862,13 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto }: { fiel
   const [filter, setFilter] = useState("");
 
   const rows = useMemo<Record<string, string>[]>(() => {
-    if (field.value && field.value.trim().startsWith("[")) {
-      try {
-        const p = JSON.parse(field.value);
-        if (Array.isArray(p)) return p as Record<string, string>[];
-      } catch {
-        /* ignore */
-      }
+    let v: unknown = field.value;
+    for (let i = 0; i < 3 && typeof v === "string"; i++) {
+      const t = v.trim();
+      if (!(t.startsWith("[") || t.startsWith('"'))) break;
+      try { v = JSON.parse(t); } catch { break; }
     }
+    if (Array.isArray(v)) return v as Record<string, string>[];
     return opts.defaultRows ?? [];
   }, [field.value, opts.defaultRows]);
 
