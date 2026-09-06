@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Plus, Trash2, Filter, Camera, Upload, Loader2, X, MapPin } from "lucide-react";
 import { toast } from "sonner";
+import { AttachmentLightbox, type LightboxItem } from "./ui/attachment-lightbox";
 
 export interface TableColumn {
   key: string;
@@ -76,6 +77,7 @@ export function RepeatTableField({
   );
   const [filter, setFilter] = useState<string>("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<{ items: LightboxItem[]; startIndex: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const pending = useRef<{ rowId: string; slot: number } | null>(null);
@@ -291,8 +293,24 @@ export function RepeatTableField({
                             <span className="text-[9px] font-semibold uppercase tracking-wide text-zinc-400">{ps.label}</span>
                             {att ? (
                               <div className="relative">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={att.url} alt={ps.label} className="h-24 w-full rounded-lg border object-cover" />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    // Kumpulkan semua foto baris ini utk lightbox.
+                                    const rowPhotos = photoSlots
+                                      .map((p, si) => {
+                                        const a = attachments.find((x) => x.rowId === rowId && x.slot === si);
+                                        return a ? { id: a.id, url: a.url, alt: p.label } : null;
+                                      })
+                                      .filter((x): x is LightboxItem => x !== null);
+                                    const startIndex = Math.max(0, rowPhotos.findIndex((it) => it.id === att.id));
+                                    setLightbox({ items: rowPhotos, startIndex });
+                                  }}
+                                  className="block w-full"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={att.url} alt={ps.label} className="h-24 w-full cursor-zoom-in rounded-lg border object-cover transition active:opacity-80" />
+                                </button>
                                 {!locked && (
                                   <button type="button" onClick={() => void onDeletePhoto(att.id)} aria-label="Hapus foto" className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-danger text-white">
                                     <X className="size-3" />
@@ -329,6 +347,14 @@ export function RepeatTableField({
           </div>
         );
       })}
+      {lightbox && (
+        <AttachmentLightbox
+          items={lightbox.items}
+          startIndex={lightbox.startIndex}
+          open={lightbox !== null}
+          onClose={() => setLightbox(null)}
+        />
+      )}
     </div>
   );
 }
