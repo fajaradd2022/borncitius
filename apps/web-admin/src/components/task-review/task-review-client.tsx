@@ -139,6 +139,10 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
   const [busyAction, setBusyAction] = useState<null | "send-back" | "approve-all" | "reopen">(null);
   const [reopenOpen, setReopenOpen] = useState(false);
   const [reopenReason, setReopenReason] = useState("");
+  // Kirim balik: pilih teknisi tujuan revisi (fleksibel — teknisi mana saja).
+  const [sendBackOpen, setSendBackOpen] = useState(false);
+  const [teknisiList, setTeknisiList] = useState<Array<{ id: string; name: string; email: string }>>([]);
+  const [selectedTeknisi, setSelectedTeknisi] = useState<string>("");
   // Ref berkas dipakai bersama antar field (hanya satu editor aktif pada satu waktu).
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -380,14 +384,39 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
     }
   }
 
-  async function handleSendBack() {
+  // Buka dialog kirim-balik + muat daftar teknisi (fleksibel: pilih siapa saja).
+  async function openSendBack() {
+    setSelectedTeknisi("");
+    setSendBackOpen(true);
+    try {
+      const res = await fetch("/api/proxy/users", { headers: { "Content-Type": "application/json" } });
+      const users = (await res.json().catch(() => [])) as Array<{ id: string; name: string; email: string; role: string; isActive: boolean }>;
+      if (Array.isArray(users)) {
+        setTeknisiList(users.filter((u) => u.role === "teknisi" && u.isActive).map((u) => ({ id: u.id, name: u.name, email: u.email })));
+      } else {
+        setTeknisiList([]);
+      }
+    } catch {
+      // Bila gagal memuat daftar, dialog tetap bisa "kirim ke teknisi semula".
+      setTeknisiList([]);
+    }
+  }
+
+  async function handleSendBack(assignedTeknisiId?: string) {
     setBusyAction("send-back");
     try {
-      const updated = await apiRequest<{ status: TaskStatus }>(`/${task.id}/send-back`, {
+      const updated = await apiRequest<{ status: TaskStatus; assignedTeknisiId?: string }>(`/${task.id}/send-back`, {
         method: "POST",
+        body: JSON.stringify(assignedTeknisiId ? { assignedTeknisiId } : {}),
       });
       setTask((prev) => ({ ...prev, status: updated.status }));
-      toast.success("Task dikirim balik ke teknisi untuk revisi.");
+      setSendBackOpen(false);
+      const target = teknisiList.find((t) => t.id === assignedTeknisiId);
+      toast.success(
+        target
+          ? `Task dikirim ke ${target.name} untuk revisi.`
+          : "Task dikirim balik ke teknisi untuk revisi.",
+      );
     } catch (err) {
       toast.error("Gagal mengirim balik ke teknisi.", { description: errorMessage(err) });
     } finally {
@@ -552,7 +581,7 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
                 variant="outline"
                 size="sm"
                 disabled={!anyRejected || busyAction !== null}
-                onClick={() => void handleSendBack()}
+                onClick={() => void openSendBack()}
               >
                 {busyAction === "send-back" ? (
                   <Loader2 className="size-4 animate-spin" />
@@ -912,6 +941,44 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
             <Button onClick={() => void handleReopen()} disabled={busyAction === "reopen" || !reopenReason.trim()}>
               {busyAction === "reopen" ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
               Buka Kembali
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog kirim balik ke teknisi — pilih teknisi tujuan (fleksibel). */}
+      <Dialog open={sendBackOpen} onOpenChange={(open) => { setSendBackOpen(open); if (!open) setSelectedTeknisi(""); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Kirim balik ke teknisi</DialogTitle>
+            <DialogDescription>
+              Task akan kembali ke status <strong>rejected</strong> untuk revisi. Pilih teknisi yang
+              akan mengerjakan revisi — bisa teknisi mana saja, tidak harus yang semula.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium">Teknisi tujuan</label>
+            <select
+              value={selectedTeknisi}
+              onChange={(e) => setSelectedTeknisi(e.target.value)}
+              className="h-9 rounded-md border bg-background px-2 text-sm"
+            >
+              <option value="">Teknisi semula (tidak diubah)</option>
+              {teknisiList.map((t) => (
+                <option key={t.id} value={t.id}>{t.name} — {t.email}</option>
+              ))}
+            </select>
+            {teknisiList.length === 0 && (
+              <p className="text-xs text-muted-foreground">Daftar teknisi tidak tersedia — task akan dikirim ke teknisi semula.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSendBackOpen(false)} disabled={busyAction === "send-back"}>
+              Batal
+            </Button>
+            <Button onClick={() => void handleSendBack(selectedTeknisi || undefined)} disabled={busyAction === "send-back"}>
+              {busyAction === "send-back" ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+              Kirim Balik
             </Button>
           </DialogFooter>
         </DialogContent>

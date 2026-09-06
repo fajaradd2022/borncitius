@@ -48,6 +48,13 @@ export class ReopenTaskDto {
   reason!: string;
 }
 
+export class SendBackDto {
+  /** Opsional — teknisi tujuan revisi. Bila kosong, tetap teknisi semula. */
+  @IsOptional()
+  @IsUUID()
+  assignedTeknisiId?: string;
+}
+
 export class CreateTaskDto {
   @IsUUID()
   folderId!: string;

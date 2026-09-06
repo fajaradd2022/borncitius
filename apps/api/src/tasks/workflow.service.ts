@@ -233,7 +233,7 @@ export class WorkflowService {
   }
 
   /** Kirim balik ke teknisi — hanya bila ada minimal satu field ditolak. */
-  async sendBack(user: AuthUser, taskId: string) {
+  async sendBack(user: AuthUser, taskId: string, assignedTeknisiId?: string) {
     const task = await this.loadTask(taskId);
     this.assertCanReview(user, task);
 
@@ -244,10 +244,27 @@ export class WorkflowService {
       throw new BadRequestException('Tidak ada field yang ditolak — tidak perlu dikirim balik.');
     }
 
+    // Fleksibel: reviewer boleh menugaskan revisi ke teknisi mana saja.
+    // Validasi teknisi tujuan bila diberikan.
+    let reassignId: string | undefined;
+    if (assignedTeknisiId && assignedTeknisiId !== task.assignedTeknisiId) {
+      const teknisi = await this.prisma.user.findFirst({
+        where: { id: assignedTeknisiId, role: 'teknisi', isActive: true },
+        select: { id: true },
+      });
+      if (!teknisi) {
+        throw new BadRequestException('Teknisi tujuan tidak ditemukan atau tidak aktif.');
+      }
+      reassignId = teknisi.id;
+    }
+
     return this.prisma.taskInstance.update({
       where: { id: taskId },
-      data: { status: 'rejected' },
-      select: { id: true, status: true },
+      data: {
+        status: 'rejected',
+        ...(reassignId ? { assignedTeknisiId: reassignId } : {}),
+      },
+      select: { id: true, status: true, assignedTeknisiId: true },
     });
   }
 

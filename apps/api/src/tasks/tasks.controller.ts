@@ -25,6 +25,7 @@ import {
   CreateTaskDto,
   EditFieldDto,
   ReopenTaskDto,
+  SendBackDto,
   ReviewFieldDto,
   SaveFieldValueDto,
 } from './dto/task.dto';
@@ -200,8 +201,12 @@ export class TasksController {
 
   @Post(':taskId/send-back')
   @HttpCode(200)
-  sendBack(@CurrentUser() user: AuthUser, @Param('taskId', ParseUUIDPipe) taskId: string) {
-    return this.workflow.sendBack(user, taskId);
+  sendBack(
+    @CurrentUser() user: AuthUser,
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Body() dto: SendBackDto,
+  ) {
+    return this.workflow.sendBack(user, taskId, dto.assignedTeknisiId);
   }
 
   @Post(':taskId/approve')
