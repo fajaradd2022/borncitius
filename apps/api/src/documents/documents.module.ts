@@ -176,6 +176,34 @@ class DocumentsController {
       };
     });
 
+    // KHUSUS template "Soundbox-EDC-KDS": field foto "Foto Progress" bisa berisi
+    // banyak foto, dan semuanya harus muncul di export (default photo_page hanya
+    // merender attachments[0]). Kita pecah blok photo_page dengan >1 foto menjadi
+    // beberapa blok photo_page (satu foto per blok) supaya renderer yang sudah ada
+    // menampilkan semuanya. Hanya untuk template ini — template lain tidak tersentuh.
+    if (task.template.name === 'Soundbox-EDC-KDS') {
+      const expanded: RenderBlock[] = [];
+      for (const b of blocks) {
+        const atts = b.attachments ?? [];
+        if (b.type === 'photo_page' && atts.length > 1) {
+          atts.forEach((att, i) => {
+            const baseCap = b.caption ?? b.label ?? 'Foto';
+            expanded.push({
+              ...b,
+              // Jaga urutan: sisipkan sub-blok berurutan di antara blok tetangga.
+              orderIndex: b.orderIndex + i / (atts.length + 1),
+              caption: `${baseCap} (${i + 1}/${atts.length})`,
+              attachments: [att],
+            });
+          });
+        } else {
+          expanded.push(b);
+        }
+      }
+      blocks.length = 0;
+      blocks.push(...expanded);
+    }
+
     // Fallback lampiran: field bertipe `file` (mis. "BAST") yang punya lampiran
     // tetapi TIDAK direferensikan oleh blok attachment manapun di layout, tetap
     // digabungkan ke dokumen agar tidak hilang. Lampiran disisipkan di POSISI
