@@ -558,12 +558,12 @@ export class PdfService {
             return dl >= rule.minDl ? 'Pass' : 'Fail';
           };
 
-          const rowH = 15;
+          const rowH = 13;
           // Header dua-tingkat bila ada kolom ber-group (mis. RSRP Indoor/Outdoor).
           const groups = cols.map((c) => (c as { group?: string }).group);
           const hasGroups = groups.some(Boolean);
-          const tier1H = 12; // baris super-header (RSRP)
-          const baseHdrH = isResult ? 24 : 18;
+          const tier1H = 11; // baris super-header (RSRP)
+          const baseHdrH = isResult ? 22 : 16;
           const headerH = baseHdrH + (hasGroups ? tier1H : 0);
 
           const drawHeader = () => {
@@ -620,52 +620,56 @@ export class PdfService {
           };
           drawHeader();
 
-          // Baris data — gabung sel "scenario/distance/target" (vMerge visual).
-          let prevScenario: string | null = null;
-          let prevDistance: string | null = null;
-          let prevTarget: string | null = null;
-          for (const row of rows) {
-            if (y - rowH < MARGIN) { startFreshPage(); drawHeader(); prevScenario = null; prevDistance = null; prevTarget = null; }
-            let x = MARGIN;
-            const top = y;
-            const rowRemark = isResult ? computeRemark(row) : '';
-            const sameScenario = String(row.scenario ?? '') === prevScenario;
+          // Baris data dengan vMerge SEBENARNYA pada kolom scenario/distance/target:
+          // sel digambar sekali per blok skenario, teks di tengah vertikal blok.
+          const mergeKeys = ['scenario', 'distance', 'target'];
+          const fs = 6.5;
+          let r = 0;
+          while (r < rows.length) {
+            // Tentukan panjang blok skenario (baris berturut dgn scenario sama).
+            const scen = String(rows[r].scenario ?? '');
+            let blockLen = 1;
+            while (r + blockLen < rows.length && String(rows[r + blockLen].scenario ?? '') === scen) blockLen++;
+            // Bila blok tak muat di sisa halaman, pindah halaman + ulang header.
+            if (y - blockLen * rowH < MARGIN) { startFreshPage(); drawHeader(); }
+            const blockTop = y;
+            const blockH = blockLen * rowH;
+            // Gambar sel merge (satu sel tinggi) + teksnya di tengah vertikal.
+            let mx = MARGIN;
             cols.forEach((c, i) => {
-              // vMerge: kolom scenario/distance/target yg sama dgn baris atas —
-              // gambar sel TANPA garis atas agar tampak menyatu (bukan sel kosong).
-              const isMergeCol = c.key === 'scenario' || c.key === 'distance' || c.key === 'target';
-              const merged = isMergeCol && sameScenario;
-              if (merged) {
-                // Border kiri, kanan, bawah saja (tanpa atas) → efek menyatu.
-                page.drawLine({ start: { x, y: top }, end: { x, y: top - rowH }, thickness: 0.5, color: bClr });
-                page.drawLine({ start: { x: x + colW[i], y: top }, end: { x: x + colW[i], y: top - rowH }, thickness: 0.5, color: bClr });
-              } else {
-                page.drawRectangle({ x, y: top - rowH, width: colW[i], height: rowH, borderColor: bClr, borderWidth: 0.5 });
+              if (mergeKeys.includes(c.key)) {
+                page.drawRectangle({ x: mx, y: blockTop - blockH, width: colW[i], height: blockH, borderColor: bClr, borderWidth: 0.5 });
+                const val = clipText(String(rows[r][c.key] ?? ''), bold, fs, colW[i] - 4);
+                page.drawText(val, { x: mx + (colW[i] - bold.widthOfTextAtSize(val, fs)) / 2, y: blockTop - blockH / 2 - fs / 2 + 1, size: fs, font: bold, color: rgb(0, 0, 0) });
               }
-              let val = '';
-              if (c.key === 'remark') val = rowRemark;
-              else val = row[c.key] === undefined || row[c.key] === null ? '' : String(row[c.key]);
-              // Format Latitude/Longitude: buang tanda minus, tambah hemisfer.
-              if (c.key === 'latitude') val = formatLatLon(val, 'lat');
-              if (c.key === 'longitude') val = formatLatLon(val, 'lon');
-              // RSRP: tampilkan '-' bila kosong (satu sisi diisi angka, sisi lain '-').
-              if ((c.key === 'rsrpIndoor' || c.key === 'rsrpOutdoor') && val === '') val = '-';
-              // Sembunyikan teks sel merge (nilai hanya di baris pertama blok).
-              if (merged) val = '';
-              const fs = 6.5;
-              const clipped = clipText(val, font, fs, colW[i] - 4);
-              // Kolom scenario/distance/target bold; remark bold hitam (bukan hijau).
-              const f = (isMergeCol || c.key === 'remark') ? bold : font;
-              const clr = rgb(0, 0, 0);
-              page.drawText(clipped, { x: x + (colW[i] - f.widthOfTextAtSize(clipped, fs)) / 2, y: top - rowH / 2 - fs / 2 + 1, size: fs, font: f, color: clr });
-              x += colW[i];
+              mx += colW[i];
             });
-            prevScenario = String(row.scenario ?? '');
-            prevDistance = String(row.distance ?? '');
-            prevTarget = String(row.target ?? '');
-            y -= rowH;
+            // Gambar sel non-merge tiap baris dalam blok.
+            for (let br = 0; br < blockLen; br++) {
+              const row = rows[r + br];
+              const top = blockTop - br * rowH;
+              const rowRemark = isResult ? computeRemark(row) : '';
+              let x = MARGIN;
+              cols.forEach((c, i) => {
+                if (mergeKeys.includes(c.key)) { x += colW[i]; return; }
+                page.drawRectangle({ x, y: top - rowH, width: colW[i], height: rowH, borderColor: bClr, borderWidth: 0.5 });
+                let val = '';
+                if (c.key === 'remark') val = rowRemark;
+                else val = row[c.key] === undefined || row[c.key] === null ? '' : String(row[c.key]);
+                if (c.key === 'latitude') val = formatLatLon(val, 'lat');
+                if (c.key === 'longitude') val = formatLatLon(val, 'lon');
+                if ((c.key === 'rsrpIndoor' || c.key === 'rsrpOutdoor') && val === '') val = '-';
+                const clipped = clipText(val, font, fs, colW[i] - 4);
+                const f = c.key === 'remark' ? bold : font;
+                page.drawText(clipped, { x: x + (colW[i] - f.widthOfTextAtSize(clipped, fs)) / 2, y: top - rowH / 2 - fs / 2 + 1, size: fs, font: f, color: rgb(0, 0, 0) });
+                x += colW[i];
+              });
+            }
+            y = blockTop - blockH;
+            r += blockLen;
           }
-          y -= 8;
+          // Jarak antar tabel = 1 spasi (± satu baris).
+          y -= 13;
 
           // Notes hanya di bawah TEST RESULTS. Teks PERSIS sesuai template
           // (perhatikan spasi/koma — jangan "dirapikan").
