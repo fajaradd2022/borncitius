@@ -19,6 +19,8 @@ import {
   X,
   Upload,
   Camera,
+  Trash2,
+  Plus,
 } from "lucide-react";
 
 import { Topbar } from "@/components/topbar";
@@ -1184,6 +1186,7 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable
                 <th key={c.key} className="border px-1.5 py-1 text-left font-semibold">{c.label}</th>
               ))}
               <th className="border px-1.5 py-1 text-left font-semibold">Remark</th>
+              {editable && <th className="border px-1.5 py-1 text-center font-semibold">Aksi</th>}
             </tr>
           </thead>
           <tbody>
@@ -1205,6 +1208,16 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable
                         </td>
                       ))}
                       <td className={cn("border px-1.5 py-1 font-semibold", remark === "Pass" ? "text-emerald-600" : remark === "Fail" ? "text-destructive" : "text-muted-foreground")}>{remark}</td>
+                      <td className="border px-1 py-1 text-center">
+                        <button
+                          type="button"
+                          aria-label="Hapus baris"
+                          onClick={() => setDraft((prev) => prev.filter((_, ri) => ri !== i))}
+                          className="text-destructive hover:opacity-80"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })
@@ -1225,6 +1238,19 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable
           </tbody>
         </table>
       </div>
+      {editable && (
+        <button
+          type="button"
+          onClick={() => {
+            const newRow: Record<string, string> = { _id: `r${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}` };
+            for (const c of displayCols) newRow[c.key] = "";
+            setDraft((prev) => [...prev, newRow]);
+          }}
+          className="flex items-center gap-1 self-start rounded-md border border-dashed px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/5"
+        >
+          <Plus className="size-3.5" /> Tambah Baris
+        </button>
+      )}
 
       {/* Foto per baris (mengikuti filter) — klik untuk buka penuh */}
       {(editable ? shown : rowsWithPhotos).length > 0 && (
@@ -1234,12 +1260,14 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable
             const rid = String(row._id ?? "");
             const photos = photosByRow.get(rid) ?? [];
             const remark = computeRemark(row);
-            const title = `SCEN${scenAbbr(String(row.scenario ?? ""))}_SEC${row.sectorCell ?? ""} (${row.distance ?? ""}m)`;
+            const title = scenarioCol
+              ? `SCEN${scenAbbr(String(row.scenario ?? ""))}_SEC${row.sectorCell ?? ""} (${row.distance ?? ""}m)`
+              : (String(row.date ?? "") || String(row.chronology ?? "").slice(0, 40) || rid);
             return (
               <div key={rid} className="rounded-md border">
                 <div className="flex items-center justify-between border-b bg-muted px-2 py-1">
                   <span className="text-xs font-semibold">{title}</span>
-                  <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", remark === "Pass" ? "bg-emerald-100 text-emerald-700" : remark === "Fail" ? "bg-red-100 text-red-700" : "bg-zinc-100 text-zinc-500")}>{remark}</span>
+                  {scenarioCol && <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", remark === "Pass" ? "bg-emerald-100 text-emerald-700" : remark === "Fail" ? "bg-red-100 text-red-700" : "bg-zinc-100 text-zinc-500")}>{remark}</span>}
                 </div>
                 <div className={`grid gap-2 p-2 ${photoSlots.length >= 4 ? "grid-cols-4" : "grid-cols-3"}`}>
                   {photoSlots.map((ps, slot) => {
