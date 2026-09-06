@@ -986,7 +986,7 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto }: { fiel
                   <span className="text-xs font-semibold">{title}</span>
                   <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", remark === "Pass" ? "bg-emerald-100 text-emerald-700" : remark === "Fail" ? "bg-red-100 text-red-700" : "bg-zinc-100 text-zinc-500")}>{remark}</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 p-2">
+                <div className={`grid gap-2 p-2 ${photoSlots.length >= 4 ? "grid-cols-4" : "grid-cols-3"}`}>
                   {photoSlots.map((ps, slot) => {
                     const att = photos[slot];
                     // Item lightbox untuk sektor ini (foto yg tersedia saja).

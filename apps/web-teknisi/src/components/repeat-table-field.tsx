@@ -282,7 +282,7 @@ export function RepeatTableField({
                     </div>
 
                     {/* Slot foto per baris */}
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className={`grid gap-2 ${photoSlots.length >= 4 ? "grid-cols-4" : "grid-cols-3"}`}>
                       {photoSlots.map((ps, slot) => {
                         const att = attachments.find((a) => a.rowId === rowId && a.slot === slot);
                         const isBusy = busy === `${rowId}:${slot}`;

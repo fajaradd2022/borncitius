@@ -282,10 +282,22 @@ class DocumentsController {
       // Gunakan fieldType milik field TASK (bukan template) karena template bisa
       // sudah berubah (mis. dulu 18 field photo, sekarang 1).
       const photoFieldsAll = task.fields.filter((f) => f.fieldType === 'photo');
-      const slotDefs = Array.isArray(opts.photoSlots)
+      const allSlots = Array.isArray(opts.photoSlots)
         ? (opts.photoSlots as Array<{ key: string; label: string }>)
         : [{ key: 'speedtest', label: 'SPEEDTEST' }, { key: 'youtube', label: 'YOUTUBE/DETIK' }, { key: 'location', label: 'LOCATION' }];
+      // Slot yang MASUK export PDF: hanya Speedtest/Youtube/Location.
+      // G-EARTH (dan slot input-only lain) di-exclude — hanya untuk input, tidak
+      // memengaruhi hasil export yang sudah benar.
+      const EXPORT_EXCLUDE = new Set(['gearth', 'g-earth', 'g_earth']);
+      const slotDefs = allSlots.filter((s) => !EXPORT_EXCLUDE.has(String(s.key).toLowerCase()));
       const nSlots = slotDefs.length;
+      // Peta index slot (di data) → index slot export (setelah exclude).
+      const exportIndexBySrc = new Map<number, number>();
+      allSlots.forEach((s, srcIdx) => {
+        if (!EXPORT_EXCLUDE.has(String(s.key).toLowerCase())) {
+          exportIndexBySrc.set(srcIdx, exportIndexBySrc.size);
+        }
+      });
 
       // Peta rowId -> [attachment per slot].
       const attByRow = new Map<string, Array<{ absolutePath: string; mimeType: string } | null>>();
@@ -294,7 +306,10 @@ class DocumentsController {
         for (const a of pf.attachments ?? []) {
           const meta = (a.watermarkMetadata ?? {}) as Record<string, unknown>;
           const rowId = typeof meta._tcRowId === 'string' ? meta._tcRowId : '';
-          const slot = Number(meta._tcSlot);
+          const srcSlot = Number(meta._tcSlot);
+          // Lewati slot yang dikecualikan dari export (mis. G-EARTH).
+          if (isFinite(srcSlot) && !exportIndexBySrc.has(srcSlot)) continue;
+          const slot = exportIndexBySrc.has(srcSlot) ? exportIndexBySrc.get(srcSlot)! : NaN;
           const item = { absolutePath: this.storage.absolutePathFor(a.storagePath), mimeType: a.mimeType };
           if (rowId) {
             if (!attByRow.has(rowId)) attByRow.set(rowId, Array<{ absolutePath: string; mimeType: string } | null>(nSlots).fill(null));
