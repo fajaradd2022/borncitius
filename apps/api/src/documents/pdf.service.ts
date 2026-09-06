@@ -922,9 +922,10 @@ export class PdfService {
     const nokiaImg = await loadLogo('nokia.png');
     const surgeImg = await loadLogo('surge.png');
 
-    // Tinggi target tiap logo (Nokia sedikit lebih besar agar proporsional).
-    const NOKIA_H = 22;
-    const SURGE_H = 26;
+    // Tinggi target tiap logo — sesuai proporsi template OOXML:
+    // Nokia ± 0.618" (≈44 pt), Surge ± 0.5" (≈36 pt). Nokia lebih besar.
+    const NOKIA_H = 38;
+    const SURGE_H = 30;
     const topPad = 18; // jarak dari tepi atas ke logo
     const bold = !nokiaImg || !surgeImg ? await out.embedFont(StandardFonts.HelveticaBold) : null;
 
