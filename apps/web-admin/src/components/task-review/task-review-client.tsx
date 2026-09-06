@@ -217,6 +217,7 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
     [task.fields, docPhotoFieldIds],
   );
   const allApproved =
+    task.status === "submitted" &&
     reviewableFields.length > 0 &&
     reviewableFields
       .filter((f) => !docPhotoFieldIds.has(f.id) && f.fieldType !== "repeat_table")

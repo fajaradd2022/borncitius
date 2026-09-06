@@ -5,6 +5,12 @@ import { logoutAction } from "@/lib/api/auth-actions";
 import { SyncIndicator } from "@/components/sync-indicator";
 import { PrefetchTasks } from "@/components/prefetch-tasks";
 
+// Daftar tugas harus selalu segar — jangan pakai cache Next (RSC/router cache),
+// karena task yang baru dikirim balik reviewer harus langsung muncul.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
 interface TaskRow {
   id: string;
   status: "assigned" | "in_progress" | "submitted" | "rejected" | "approved";

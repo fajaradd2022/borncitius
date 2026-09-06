@@ -273,6 +273,15 @@ export class WorkflowService {
     const task = await this.loadTask(taskId);
     this.assertCanReview(user, task);
 
+    // Approve hanya boleh untuk task yang SUDAH disubmit teknisi. Task yang
+    // baru dikirim balik (rejected) / masih dikerjakan belum boleh di-approve —
+    // harus disubmit ulang dari web-teknisi dulu.
+    if (task.status !== 'submitted') {
+      throw new BadRequestException(
+        'Task hanya bisa disetujui setelah disubmit ulang oleh teknisi.',
+      );
+    }
+
     // TestCall: bila ada field repeat_table, field photo & repeat_table dikelola
     // sebagai satu kesatuan di dalam tabel (bukan approve per-field). Kecualikan
     // dari syarat "semua field disetujui" agar approve-all tidak terkunci.

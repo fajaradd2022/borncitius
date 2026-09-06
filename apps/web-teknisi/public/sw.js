@@ -13,16 +13,15 @@
  *   cache lebih berbahaya daripada menampilkan error yang jujur.
  */
 
-const VERSION = "v3";
+const VERSION = "v4";
 const STATIC_CACHE = `bc-static-${VERSION}`;
 const PAGE_CACHE = `bc-pages-${VERSION}`;
 const OFFLINE_URL = "/offline";
 
-// "/" ikut di-precache agar daftar tugas tetap bisa dibuka tanpa sinyal.
-// Halaman detail tugas hanya tersedia offline bila sudah pernah dimuat lewat
-// navigasi penuh — di luar itu, fallback offline yang jujur lebih baik
-// daripada menampilkan data task yang mungkin sudah basi.
-const PRECACHE = ["/", OFFLINE_URL, "/manifest.json", "/icon-192.png", "/icon-512.png"];
+// Daftar tugas ("/") TIDAK di-precache: selalu diambil dari network agar task
+// yang baru dikirim balik reviewer langsung tampil; saat offline jatuh ke
+// halaman offline yang jujur. Hanya aset statis & offline page yang di-precache.
+const PRECACHE = [OFFLINE_URL, "/manifest.json", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -70,26 +69,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Halaman tugas di-cache HANYA bila seluruh JS pendukungnya juga tersedia
-  // offline. Menyajikan HTML tanpa JS menghasilkan form yang terlihat normal
-  // tetapi tidak menyimpan apa pun — kegagalan diam-diam yang jauh lebih
-  // berbahaya bagi teknisi daripada pesan "tidak ada koneksi" yang jujur.
-  // Sampai pemuatan chunk offline terjamin, hanya halaman daftar yang dilayani
-  // dari cache.
+  // Halaman daftar tugas ("/") SELALU dari network — jangan simpan HTML-nya ke
+  // cache saat online, agar task yang baru dikirim balik reviewer langsung
+  // tampil. Cache hanya dipakai sebagai fallback offline (disimpan sekali di
+  // install via PRECACHE, tidak ditimpa response terbaru yang mungkin sudah
+  // berubah setelah aksi reviewer).
   if (url.pathname === "/") {
     event.respondWith(
-      fetch(request)
-        .then((res) => {
-          if (res.ok) {
-            const copy = res.clone();
-            caches.open(PAGE_CACHE).then((c) => c.put(request, copy));
-          }
-          return res;
-        })
-        .catch(async () => {
-          const cached = await caches.match(request, { ignoreSearch: true });
-          return cached ?? caches.match(OFFLINE_URL);
-        }),
+      fetch(request).catch(async () => {
+        const cached = await caches.match(request, { ignoreSearch: true });
+        return cached ?? caches.match(OFFLINE_URL);
+      }),
     );
     return;
   }
