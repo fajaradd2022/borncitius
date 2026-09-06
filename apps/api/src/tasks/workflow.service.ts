@@ -195,11 +195,21 @@ export class WorkflowService {
     });
     if (!field) throw new NotFoundException('Field tidak ditemukan.');
 
+    // Field terstruktur (repeat_table) dikirim sbg string JSON array/objek —
+    // parse dulu agar tersimpan sbg JSON asli (bukan string ter-escape ganda).
+    let storeValue: Prisma.InputJsonValue = value as Prisma.InputJsonValue;
+    if (typeof value === 'string') {
+      const t = value.trim();
+      if (t.startsWith('[') || t.startsWith('{')) {
+        try { storeValue = JSON.parse(t) as Prisma.InputJsonValue; } catch { /* simpan apa adanya */ }
+      }
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.taskInstanceField.update({
         where: { id: fieldId },
         data: {
-          value: value as Prisma.InputJsonValue,
+          value: storeValue,
           reviewStatus: 'approved',
           rejectComment: null,
           lastEditedBy: user.id,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
 import {
@@ -262,6 +262,77 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
     setEditingFieldId(field.id);
     setEditValue(field.value ?? "");
   }
+
+  // --- Edit tabel Test Call (repeat_table) oleh reviewer ---
+  // Simpan isi tabel (JSON baris) via reviewer-edit.
+  async function saveRepeatTable(field: ReviewField, rowsJson: string) {
+    setBusyFieldId(field.id);
+    try {
+      const updated = await apiRequest<{ value: unknown; reviewStatus: ReviewStatus; lastEditedBy: string | null }>(
+        `/${task.id}/fields/${field.id}/reviewer-edit`,
+        { method: "PATCH", body: JSON.stringify({ value: rowsJson }) },
+      );
+      updateField(field.id, {
+        value: typeof updated.value === "string" ? updated.value : rowsJson,
+        reviewStatus: updated.reviewStatus,
+        lastEditedBy: updated.lastEditedBy ?? "anda",
+      });
+      setEditingFieldId(null);
+      toast.success(`Tabel "${field.label}" disimpan.`);
+    } catch (err) {
+      toast.error("Gagal menyimpan tabel.", { description: errorMessage(err) });
+    } finally {
+      setBusyFieldId(null);
+    }
+  }
+
+  // Upload/ganti foto satu baris+slot pada field foto (gudang foto Test Call).
+  async function uploadRowPhoto(rowId: string, slot: number, file: File) {
+    const photoField = task.fields.find((f) => docPhotoFieldIds.has(f.id) && f.fieldType === "photo");
+    if (!photoField) { toast.error("Field foto tidak ditemukan."); return; }
+    // Ganti: hapus foto lama di baris+slot ini dulu (bila ada).
+    const existing = docPhotoAttachments.find((a) => {
+      const m = (a.metadata ?? {}) as Record<string, unknown>;
+      return m._tcRowId === rowId && Number(m._tcSlot) === slot;
+    });
+    try {
+      if (existing) {
+        await fetch(`/api/proxy/tasks/${task.id}/fields/${photoField.id}/attachments/${existing.id}`, { method: "DELETE" });
+      }
+      const form = new FormData();
+      form.append("file", file);
+      form.append("type", "photo_uploaded");
+      form.append("watermark", JSON.stringify({ _tcRowId: rowId, _tcSlot: slot }));
+      const res = await fetch(`/api/proxy/tasks/${task.id}/fields/${photoField.id}/attachments`, { method: "POST", body: form });
+      const body = (await res.json().catch(() => null)) as (ReviewAttachment & { message?: string; watermarkMetadata?: unknown }) | null;
+      if (!res.ok || !body?.id) { toast.error("Gagal mengunggah foto.", { description: body?.message }); return; }
+      const kept = (photoField.attachments ?? []).filter((a) => a.id !== existing?.id);
+      updateField(photoField.id, {
+        attachments: [...kept, {
+          id: body.id, originalName: body.originalName, mimeType: body.mimeType,
+          syncStatus: body.syncStatus ?? "pending",
+          metadata: (body.watermarkMetadata ?? { _tcRowId: rowId, _tcSlot: slot }) as Record<string, unknown>,
+        }],
+      });
+      toast.success("Foto diperbarui.");
+    } catch {
+      toast.error("Tidak bisa menghubungi server.");
+    }
+  }
+
+  // Hapus foto satu baris+slot.
+  async function deleteRowPhoto(attId: string) {
+    const photoField = task.fields.find((f) => docPhotoFieldIds.has(f.id) && f.fieldType === "photo");
+    if (!photoField) return;
+    try {
+      await fetch(`/api/proxy/tasks/${task.id}/fields/${photoField.id}/attachments/${attId}`, { method: "DELETE" });
+      updateField(photoField.id, { attachments: (photoField.attachments ?? []).filter((a) => a.id !== attId) });
+      toast.success("Foto dihapus.");
+    } catch {
+      toast.error("Tidak bisa menghubungi server.");
+    }
+  }
+
 
   async function saveDirectEdit(field: ReviewField) {
     // "Revisi langsung oleh reviewer" (PRD 4.4 + ERD REVIEW_LOG.action=edit_field):
@@ -541,7 +612,19 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
                         </div>
                       </div>
 
-                      {isEditing ? (
+                      {field.fieldType === "repeat_table" ? (
+                        <TestCallTableView
+                          field={field}
+                          photoAttachments={docPhotoAttachments}
+                          editable={isEditing}
+                          busy={isBusy}
+                          onOpenPhoto={(items, startIndex) => setLightbox({ items, startIndex })}
+                          onSaveRows={(rowsJson) => void saveRepeatTable(field, rowsJson)}
+                          onUploadPhoto={(rowId, slot, file) => uploadRowPhoto(rowId, slot, file)}
+                          onDeletePhoto={(attId) => deleteRowPhoto(attId)}
+                          onCancel={() => setEditingFieldId(null)}
+                        />
+                      ) : isEditing ? (
                         hasAttachments ? (
                           <div className="flex flex-col gap-2 rounded-md border border-dashed p-3">
                             <p className="text-xs text-muted-foreground">
@@ -642,12 +725,6 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
                             </Button>
                           </div>
                         )
-                      ) : field.fieldType === "repeat_table" ? (
-                        <TestCallTableView
-                          field={field}
-                          photoAttachments={docPhotoAttachments}
-                          onOpenPhoto={(items, startIndex) => setLightbox({ items, startIndex })}
-                        />
                       ) : hasAttachments && field.attachments && field.attachments.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
                           {field.attachments.map((att) => (
@@ -845,7 +922,17 @@ interface TableColumnDef {
  * Tampilan read-only tabel test-call untuk reviewer, dengan filter Sector/Cell.
  * Remark dihitung otomatis (Pass/Fail) dari DL Tput vs target scenario.
  */
-function TestCallTableView({ field, photoAttachments = [], onOpenPhoto }: { field: ReviewField; photoAttachments?: ReviewAttachment[]; onOpenPhoto?: (items: LightboxItem[], startIndex: number) => void }) {
+function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable = false, busy = false, onSaveRows, onUploadPhoto, onDeletePhoto, onCancel }: {
+  field: ReviewField;
+  photoAttachments?: ReviewAttachment[];
+  onOpenPhoto?: (items: LightboxItem[], startIndex: number) => void;
+  editable?: boolean;
+  busy?: boolean;
+  onSaveRows?: (rowsJson: string) => void;
+  onUploadPhoto?: (rowId: string, slot: number, file: File) => void;
+  onDeletePhoto?: (attId: string) => void;
+  onCancel?: () => void;
+}) {
   const opts = (field.options ?? {}) as {
     columns?: TableColumnDef[];
     remarkRules?: { scenario: string; minDl: number }[];
@@ -871,6 +958,21 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto }: { fiel
     if (Array.isArray(v)) return v as Record<string, string>[];
     return opts.defaultRows ?? [];
   }, [field.value, opts.defaultRows]);
+
+  // Draft baris utk mode edit (disalin dari rows saat masuk edit).
+  const [draft, setDraft] = useState<Record<string, string>[]>(rows);
+  const draftKey = useRef<string>("");
+  useEffect(() => {
+    // Re-sync draft ketika masuk mode edit atau data sumber berubah.
+    const key = JSON.stringify(rows);
+    if (editable && draftKey.current !== key) {
+      setDraft(rows.map((r) => ({ ...r })));
+      draftKey.current = key;
+    }
+    if (!editable) draftKey.current = "";
+  }, [editable, rows]);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const pendingPhoto = useRef<{ rowId: string; slot: number } | null>(null);
 
   // Peta rowId -> [attachment per slot].
   const photosByRow = useMemo(() => {
@@ -917,6 +1019,30 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto }: { fiel
 
   return (
     <div className="flex flex-col gap-3">
+      {editable && (
+        <div className="flex items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2">
+          <span className="text-xs font-semibold text-primary">Mode edit: ubah isi tabel & foto, lalu Simpan.</span>
+          <div className="flex gap-2">
+            <Button size="sm" className="h-8" disabled={busy} onClick={() => onSaveRows?.(JSON.stringify(draft))}>
+              {busy ? <Loader2 className="size-3.5 animate-spin" /> : "Simpan"}
+            </Button>
+            <Button size="sm" variant="ghost" className="h-8" disabled={busy} onClick={() => onCancel?.()}>Batal</Button>
+          </div>
+        </div>
+      )}
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          const p = pendingPhoto.current;
+          if (f && p) onUploadPhoto?.(p.rowId, p.slot, f);
+          pendingPhoto.current = null;
+          e.target.value = "";
+        }}
+      />
       {/* Ringkasan + filter untuk memudahkan review */}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2">
         <div className="flex items-center gap-3 text-xs">
@@ -953,18 +1079,39 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto }: { fiel
             </tr>
           </thead>
           <tbody>
-            {shown.map((row, i) => {
-              const remark = computeRemark(row);
-              return (
-                <tr key={i} className="odd:bg-background even:bg-muted/30">
-                  {displayCols.map((c) => (
-                    <td key={c.key} className="border px-1.5 py-1">{row[c.key] ?? ""}</td>
-                  ))}
-                  <td className={cn("border px-1.5 py-1 font-semibold", remark === "Pass" ? "text-emerald-600" : remark === "Fail" ? "text-destructive" : "text-muted-foreground")}>{remark}</td>
-                </tr>
-              );
-            })}
-            {shown.length === 0 && (
+            {editable
+              ? draft.map((row, i) => {
+                  const remark = computeRemark(row);
+                  return (
+                    <tr key={i} className="odd:bg-background even:bg-muted/30">
+                      {displayCols.map((c) => (
+                        <td key={c.key} className="border px-0.5 py-0.5">
+                          <input
+                            value={row[c.key] ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDraft((prev) => prev.map((r, ri) => (ri === i ? { ...r, [c.key]: val } : r)));
+                            }}
+                            className="h-6 w-full min-w-[48px] rounded border bg-background px-1 text-[11px]"
+                          />
+                        </td>
+                      ))}
+                      <td className={cn("border px-1.5 py-1 font-semibold", remark === "Pass" ? "text-emerald-600" : remark === "Fail" ? "text-destructive" : "text-muted-foreground")}>{remark}</td>
+                    </tr>
+                  );
+                })
+              : shown.map((row, i) => {
+                  const remark = computeRemark(row);
+                  return (
+                    <tr key={i} className="odd:bg-background even:bg-muted/30">
+                      {displayCols.map((c) => (
+                        <td key={c.key} className="border px-1.5 py-1">{row[c.key] ?? ""}</td>
+                      ))}
+                      <td className={cn("border px-1.5 py-1 font-semibold", remark === "Pass" ? "text-emerald-600" : remark === "Fail" ? "text-destructive" : "text-muted-foreground")}>{remark}</td>
+                    </tr>
+                  );
+                })}
+            {!editable && shown.length === 0 && (
               <tr><td colSpan={displayCols.length + 1} className="px-2 py-3 text-center text-muted-foreground">Belum ada data.</td></tr>
             )}
           </tbody>
@@ -972,10 +1119,10 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto }: { fiel
       </div>
 
       {/* Foto per baris (mengikuti filter) — klik untuk buka penuh */}
-      {rowsWithPhotos.length > 0 && (
+      {(editable ? shown : rowsWithPhotos).length > 0 && (
         <div className="flex flex-col gap-3">
-          <span className="text-xs font-semibold text-muted-foreground">Dokumentasi Foto ({rowsWithPhotos.length} sektor)</span>
-          {rowsWithPhotos.map((row) => {
+          <span className="text-xs font-semibold text-muted-foreground">Dokumentasi Foto {editable ? "(klik + untuk tambah/ganti, × untuk hapus)" : `(${rowsWithPhotos.length} sektor)`}</span>
+          {(editable ? shown : rowsWithPhotos).map((row) => {
             const rid = String(row._id ?? "");
             const photos = photosByRow.get(rid) ?? [];
             const remark = computeRemark(row);
@@ -997,16 +1144,47 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto }: { fiel
                       <div key={ps.key} className="flex flex-col gap-1">
                         <span className="text-[9px] font-semibold uppercase text-muted-foreground">{ps.label}</span>
                         {att ? (
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const idx = sectorItems.findIndex((it) => it.id === att.id);
+                                onOpenPhoto?.(sectorItems, idx < 0 ? 0 : idx);
+                              }}
+                              className="block w-full"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={`/api/proxy/tasks/attachments/${att.id}/file`} alt={ps.label} className="h-28 w-full cursor-zoom-in rounded border object-cover transition hover:opacity-90" />
+                            </button>
+                            {editable && (
+                              <div className="absolute right-1 top-1 flex gap-1">
+                                <button
+                                  type="button"
+                                  aria-label="Ganti foto"
+                                  onClick={() => { pendingPhoto.current = { rowId: rid, slot }; photoInputRef.current?.click(); }}
+                                  className="flex size-5 items-center justify-center rounded-full bg-primary text-white shadow"
+                                >
+                                  <Upload className="size-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  aria-label="Hapus foto"
+                                  onClick={() => onDeletePhoto?.(att.id)}
+                                  className="flex size-5 items-center justify-center rounded-full bg-destructive text-white shadow"
+                                >
+                                  <X className="size-3" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ) : editable ? (
                           <button
                             type="button"
-                            onClick={() => {
-                              const idx = sectorItems.findIndex((it) => it.id === att.id);
-                              onOpenPhoto?.(sectorItems, idx < 0 ? 0 : idx);
-                            }}
-                            className="block"
+                            onClick={() => { pendingPhoto.current = { rowId: rid, slot }; photoInputRef.current?.click(); }}
+                            className="flex h-28 flex-col items-center justify-center gap-1 rounded border border-dashed text-[10px] text-muted-foreground hover:bg-muted"
                           >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={`/api/proxy/tasks/attachments/${att.id}/file`} alt={ps.label} className="h-28 w-full cursor-zoom-in rounded border object-cover transition hover:opacity-90" />
+                            <Upload className="size-4" />
+                            Tambah
                           </button>
                         ) : (
                           <div className="flex h-28 items-center justify-center rounded border border-dashed text-[10px] text-muted-foreground">—</div>
