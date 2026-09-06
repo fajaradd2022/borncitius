@@ -689,9 +689,9 @@ export class PdfService {
         }
 
         case 'photo_grid_3': {
-          // Grid foto per sektor: SATU sektor = SATU halaman penuh.
-          // Judul + 3 kolom (Speedtest / Youtube-Detik / Location), foto besar
-          // memanjang (contain, rasio asli).
+          // Grid foto per sektor: DUA sektor per halaman (masing-masing setengah
+          // halaman), seperti template. Judul + 3 kolom (Speedtest / Youtube-Detik
+          // / Location), foto contain (rasio asli).
           const units = block.photoGrid ?? [];
           const colHeaders = ['SPEEDTEST', 'YOUTUBE/DETIK', 'LOCATION'];
           const bClr = rgb(0, 0, 0); // border hitam sesuai template
@@ -700,13 +700,16 @@ export class PdfService {
           const siteTag = (block.siteInfo?.siteId && block.siteInfo?.siteName)
             ? `${block.siteInfo.siteId}_${block.siteInfo.siteName}`
             : (block.siteInfo?.siteId ?? '');
+          const titleH = 18, colHdrH = 16;
+          const UNIT_GAP = 14; // jarak antar dua unit di halaman yang sama
+          // Tinggi satu unit = setengah area konten halaman (2 unit / halaman).
+          const halfArea = (topY - MARGIN - UNIT_GAP) / 2;
+          const photoH = halfArea - titleH - colHdrH;
+          const unitH = titleH + colHdrH + photoH;
           for (const unit of units) {
-            // Tiap sektor menempati satu halaman penuh sendiri.
-            startFreshPage();
-            const titleH = 18, colHdrH = 16;
+            // Mulai halaman baru bila sisa ruang tidak cukup untuk satu unit.
+            if (y - unitH < MARGIN) startFreshPage();
             const top = y;
-            // Foto memenuhi sisa tinggi halaman (dari bawah header kolom s/d margin).
-            const photoH = top - titleH - colHdrH - MARGIN;
             // Judul unit (banner) — bg DAE9F7, teks hitam, TANPA highlight kuning.
             page.drawRectangle({ x: MARGIN, y: top - titleH, width: contentWidth, height: titleH, color: gridHdrBg, borderColor: bClr, borderWidth: bW });
             const unitSiteTag = unit.siteTag ?? siteTag;
@@ -722,7 +725,7 @@ export class PdfService {
               const w = bold.widthOfTextAtSize(h, 9);
               page.drawText(h, { x: MARGIN + i * cw + (cw - w) / 2, y: hdrY - 11, size: 9, font: bold, color: rgb(0, 0, 0) });
             });
-            // 3 kotak foto besar (memenuhi tinggi halaman)
+            // 3 kotak foto (setengah halaman)
             const photoY = hdrY - colHdrH;
             for (let i = 0; i < 3; i++) {
               const cellX = MARGIN + i * cw;
@@ -743,7 +746,7 @@ export class PdfService {
                 }
               }
             }
-            y = photoY - photoH;
+            y = photoY - photoH - UNIT_GAP;
           }
           break;
         }
