@@ -261,7 +261,7 @@ export function RepeatTableField({
 
                     <div className="grid grid-cols-2 gap-2">
                       {editableCols.filter((c) => !c.group).map((c) => (
-                        <label key={c.key} className="flex flex-col gap-0.5">
+                        <label key={c.key} className={`flex flex-col gap-0.5 ${c.type === "textarea" ? "col-span-2" : ""}`}>
                           <span className="text-[10px] uppercase tracking-wide text-zinc-400">{c.label}</span>
                           {c.type === "dropdown" ? (
                             <select value={r[c.key] ?? ""} disabled={locked} onChange={(e) => updateCell(rowId, c.key, e.target.value)} className="h-9 rounded-lg border border-border bg-background px-2 text-sm disabled:bg-muted">
@@ -277,8 +277,25 @@ export function RepeatTableField({
                                 </button>
                               )}
                             </div>
+                          ) : c.type === "textarea" ? (
+                            <textarea
+                              value={r[c.key] ?? ""}
+                              disabled={locked}
+                              onChange={(e) => updateCell(rowId, c.key, e.target.value)}
+                              rows={2}
+                              ref={(el) => { if (el) { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; } }}
+                              onInput={(e) => { const t = e.currentTarget; t.style.height = "auto"; t.style.height = `${t.scrollHeight}px`; }}
+                              className="min-h-9 resize-none overflow-hidden rounded-lg border border-border px-2 py-1.5 text-sm outline-none focus:border-primary disabled:bg-muted"
+                            />
                           ) : (
-                            <input type={c.type === "number" ? "number" : "text"} inputMode={c.type === "number" ? "decimal" : undefined} value={r[c.key] ?? ""} disabled={locked} onChange={(e) => updateCell(rowId, c.key, e.target.value)} className="h-9 rounded-lg border border-border px-2 text-sm outline-none focus:border-primary disabled:bg-muted" />
+                            <input
+                              type={c.type === "number" ? "number" : c.type === "date" ? "date" : c.type === "time" ? "time" : "text"}
+                              inputMode={c.type === "number" ? "decimal" : undefined}
+                              value={r[c.key] ?? ""}
+                              disabled={locked}
+                              onChange={(e) => updateCell(rowId, c.key, e.target.value)}
+                              className="h-9 rounded-lg border border-border px-2 text-sm outline-none focus:border-primary disabled:bg-muted"
+                            />
                           )}
                         </label>
                       ))}
@@ -287,7 +304,7 @@ export function RepeatTableField({
                     {/* Slot foto per baris */}
                     <div className={`grid gap-2 ${photoSlots.length >= 4 ? "grid-cols-4" : "grid-cols-3"}`}>
                       {photoSlots.map((ps, slot) => {
-                        const isMulti = ps.key === "gearth"; // G-EARTH: bisa >1 foto
+                        const isMulti = ps.key === "gearth" || ps.key === "evidence"; // slot yg boleh >1 foto
                         const isBusy = busy === `${rowId}:${slot}`;
                         if (isMulti) {
                           const items = attachments.filter((a) => a.rowId === rowId && a.slot === slot);

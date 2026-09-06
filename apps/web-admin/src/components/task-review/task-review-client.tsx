@@ -312,15 +312,11 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
   }
 
   // Upload/ganti foto satu baris+slot pada field foto (gudang foto Test Call).
-  async function uploadRowPhoto(rowId: string, slot: number, file: File) {
+  async function uploadRowPhoto(rowId: string, slot: number, file: File, multi = false) {
     const photoField = task.fields.find((f) => docPhotoFieldIds.has(f.id) && f.fieldType === "photo");
     if (!photoField) { toast.error("Field foto tidak ditemukan."); return; }
-    // Cek apakah slot ini G-EARTH (boleh >1 foto → jangan replace, tapi append).
-    const opts = (photoField.options ?? {}) as { photoSlots?: { key: string }[] };
-    const slotsDef = (task.fields.find((f) => f.fieldType === "repeat_table")?.options as { photoSlots?: { key: string }[] } | undefined)?.photoSlots
-      ?? opts.photoSlots
-      ?? [];
-    const isMultiSlot = slotsDef[slot]?.key === "gearth";
+    // multi=true → slot boleh >1 foto (G-EARTH/Evidence): append, jangan replace.
+    const isMultiSlot = multi;
     // Ganti (slot tunggal): hapus foto lama di baris+slot ini dulu. G-EARTH: append.
     const existing = isMultiSlot ? undefined : docPhotoAttachments.find((a) => {
       const m = (a.metadata ?? {}) as Record<string, unknown>;
@@ -676,7 +672,7 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
                           busy={isBusy}
                           onOpenPhoto={(items, startIndex) => setLightbox({ items, startIndex })}
                           onSaveRows={(rowsJson) => void saveRepeatTable(field, rowsJson)}
-                          onUploadPhoto={(rowId, slot, file) => uploadRowPhoto(rowId, slot, file)}
+                          onUploadPhoto={(rowId, slot, file, multi) => uploadRowPhoto(rowId, slot, file, multi)}
                           onDeletePhoto={(attId) => deleteRowPhoto(attId)}
                           onCancel={() => setEditingFieldId(null)}
                         />
@@ -1008,6 +1004,7 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
 interface TableColumnDef {
   key: string;
   label: string;
+  type?: string;
   group?: boolean;
   filter?: boolean;
 }
@@ -1023,7 +1020,7 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable
   editable?: boolean;
   busy?: boolean;
   onSaveRows?: (rowsJson: string) => void;
-  onUploadPhoto?: (rowId: string, slot: number, file: File) => void;
+  onUploadPhoto?: (rowId: string, slot: number, file: File, multi?: boolean) => void;
   onDeletePhoto?: (attId: string) => void;
   onCancel?: () => void;
 }) {
@@ -1066,7 +1063,7 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable
     if (!editable) draftKey.current = "";
   }, [editable, rows]);
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const pendingPhoto = useRef<{ rowId: string; slot: number } | null>(null);
+  const pendingPhoto = useRef<{ rowId: string; slot: number; multi?: boolean } | null>(null);
 
   // Peta rowId -> [attachment per slot].
   const photosByRow = useMemo(() => {
@@ -1083,21 +1080,24 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable
     return map;
   }, [photoAttachments, photoSlots.length]);
 
-  // Slot G-EARTH bisa >1 foto → kumpulkan SEMUA attachment per rowId+slot.
-  const gearthSlotIndex = photoSlots.findIndex((p) => p.key === "gearth");
-  const multiPhotosByRow = useMemo(() => {
+  // Slot yang boleh >1 foto (G-EARTH, Evidence) → kumpulkan SEMUA attachment
+  // per rowId+slot. Key map = `${rowId}:${slotIndex}`.
+  const multiSlotKeys = new Set(["gearth", "evidence"]);
+  const multiSlotIndexes = photoSlots.map((p, i) => (multiSlotKeys.has(p.key) ? i : -1)).filter((i) => i >= 0);
+  const multiPhotosByRowSlot = useMemo(() => {
     const map = new Map<string, ReviewAttachment[]>();
-    if (gearthSlotIndex < 0) return map;
+    if (multiSlotIndexes.length === 0) return map;
     for (const a of photoAttachments) {
       const meta = (a.metadata ?? {}) as Record<string, unknown>;
       const rowId = typeof meta._tcRowId === "string" ? meta._tcRowId : "";
       const slot = Number(meta._tcSlot ?? -1);
-      if (!rowId || slot !== gearthSlotIndex) continue;
-      if (!map.has(rowId)) map.set(rowId, []);
-      map.get(rowId)!.push(a);
+      if (!rowId || !multiSlotIndexes.includes(slot)) continue;
+      const k = `${rowId}:${slot}`;
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(a);
     }
     return map;
-  }, [photoAttachments, gearthSlotIndex]);
+  }, [photoAttachments, multiSlotIndexes.join(",")]);
 
   const filterCol = columns.find((c) => c.filter);
   const scenarioCol = columns.find((c) => c.group);
@@ -1148,7 +1148,7 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable
         onChange={(e) => {
           const f = e.target.files?.[0];
           const p = pendingPhoto.current;
-          if (f && p) onUploadPhoto?.(p.rowId, p.slot, f);
+          if (f && p) onUploadPhoto?.(p.rowId, p.slot, f, p.multi);
           pendingPhoto.current = null;
           e.target.value = "";
         }}
@@ -1196,15 +1196,28 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable
                   return (
                     <tr key={i} className="odd:bg-background even:bg-muted/30">
                       {displayCols.map((c) => (
-                        <td key={c.key} className="border px-0.5 py-0.5">
-                          <input
-                            value={row[c.key] ?? ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setDraft((prev) => prev.map((r, ri) => (ri === i ? { ...r, [c.key]: val } : r)));
-                            }}
-                            className="h-6 w-full min-w-[48px] rounded border bg-background px-1 text-[11px]"
-                          />
+                        <td key={c.key} className="border px-0.5 py-0.5 align-top">
+                          {c.type === "textarea" ? (
+                            <textarea
+                              value={row[c.key] ?? ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setDraft((prev) => prev.map((r, ri) => (ri === i ? { ...r, [c.key]: val } : r)));
+                              }}
+                              rows={2}
+                              className="min-h-6 w-full min-w-[140px] resize-y rounded border bg-background px-1 py-0.5 text-[11px]"
+                            />
+                          ) : (
+                            <input
+                              type={c.type === "date" ? "date" : c.type === "time" ? "time" : c.type === "number" ? "number" : "text"}
+                              value={row[c.key] ?? ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setDraft((prev) => prev.map((r, ri) => (ri === i ? { ...r, [c.key]: val } : r)));
+                              }}
+                              className="h-6 w-full min-w-[48px] rounded border bg-background px-1 text-[11px]"
+                            />
+                          )}
                         </td>
                       ))}
                       <td className={cn("border px-1.5 py-1 font-semibold", remark === "Pass" ? "text-emerald-600" : remark === "Fail" ? "text-destructive" : "text-muted-foreground")}>{remark}</td>
@@ -1271,9 +1284,9 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable
                 </div>
                 <div className={`grid gap-2 p-2 ${photoSlots.length >= 4 ? "grid-cols-4" : "grid-cols-3"}`}>
                   {photoSlots.map((ps, slot) => {
-                    // G-EARTH: bisa >1 foto — tampilkan semua + tombol Add (edit mode).
-                    if (ps.key === "gearth") {
-                      const gitems = multiPhotosByRow.get(rid) ?? [];
+                    // Slot multi-foto (G-EARTH / Evidence): tampilkan semua + tombol Add (edit mode).
+                    if (ps.key === "gearth" || ps.key === "evidence") {
+                      const gitems = multiPhotosByRowSlot.get(`${rid}:${slot}`) ?? [];
                       const gLb: LightboxItem[] = gitems.map((a) => ({ id: a.id, url: `/api/proxy/tasks/attachments/${a.id}/file`, alt: `${title} — ${ps.label}` }));
                       return (
                         <div key={ps.key} className="flex flex-col gap-1">
@@ -1307,7 +1320,7 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable
                             {editable && (
                               <button
                                 type="button"
-                                onClick={() => { pendingPhoto.current = { rowId: rid, slot }; photoInputRef.current?.click(); }}
+                                onClick={() => { pendingPhoto.current = { rowId: rid, slot, multi: true }; photoInputRef.current?.click(); }}
                                 className="flex h-9 items-center justify-center gap-1 rounded border border-dashed text-[10px] text-muted-foreground hover:bg-muted"
                               >
                                 <Upload className="size-3.5" /> Add
