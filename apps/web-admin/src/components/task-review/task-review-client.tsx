@@ -312,8 +312,14 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
   async function uploadRowPhoto(rowId: string, slot: number, file: File) {
     const photoField = task.fields.find((f) => docPhotoFieldIds.has(f.id) && f.fieldType === "photo");
     if (!photoField) { toast.error("Field foto tidak ditemukan."); return; }
-    // Ganti: hapus foto lama di baris+slot ini dulu (bila ada).
-    const existing = docPhotoAttachments.find((a) => {
+    // Cek apakah slot ini G-EARTH (boleh >1 foto → jangan replace, tapi append).
+    const opts = (photoField.options ?? {}) as { photoSlots?: { key: string }[] };
+    const slotsDef = (task.fields.find((f) => f.fieldType === "repeat_table")?.options as { photoSlots?: { key: string }[] } | undefined)?.photoSlots
+      ?? opts.photoSlots
+      ?? [];
+    const isMultiSlot = slotsDef[slot]?.key === "gearth";
+    // Ganti (slot tunggal): hapus foto lama di baris+slot ini dulu. G-EARTH: append.
+    const existing = isMultiSlot ? undefined : docPhotoAttachments.find((a) => {
       const m = (a.metadata ?? {}) as Record<string, unknown>;
       return m._tcRowId === rowId && Number(m._tcSlot) === slot;
     });
@@ -336,7 +342,7 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
           metadata: (body.watermarkMetadata ?? { _tcRowId: rowId, _tcSlot: slot }) as Record<string, unknown>,
         }],
       });
-      toast.success("Foto diperbarui.");
+      toast.success(isMultiSlot ? "Foto G-EARTH ditambahkan." : "Foto diperbarui.");
     } catch {
       toast.error("Tidak bisa menghubungi server.");
     }
@@ -1074,6 +1080,22 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable
     return map;
   }, [photoAttachments, photoSlots.length]);
 
+  // Slot G-EARTH bisa >1 foto → kumpulkan SEMUA attachment per rowId+slot.
+  const gearthSlotIndex = photoSlots.findIndex((p) => p.key === "gearth");
+  const multiPhotosByRow = useMemo(() => {
+    const map = new Map<string, ReviewAttachment[]>();
+    if (gearthSlotIndex < 0) return map;
+    for (const a of photoAttachments) {
+      const meta = (a.metadata ?? {}) as Record<string, unknown>;
+      const rowId = typeof meta._tcRowId === "string" ? meta._tcRowId : "";
+      const slot = Number(meta._tcSlot ?? -1);
+      if (!rowId || slot !== gearthSlotIndex) continue;
+      if (!map.has(rowId)) map.set(rowId, []);
+      map.get(rowId)!.push(a);
+    }
+    return map;
+  }, [photoAttachments, gearthSlotIndex]);
+
   const filterCol = columns.find((c) => c.filter);
   const scenarioCol = columns.find((c) => c.group);
   const sectorValues = useMemo(() => {
@@ -1220,6 +1242,55 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable
                 </div>
                 <div className={`grid gap-2 p-2 ${photoSlots.length >= 4 ? "grid-cols-4" : "grid-cols-3"}`}>
                   {photoSlots.map((ps, slot) => {
+                    // G-EARTH: bisa >1 foto — tampilkan semua + tombol Add (edit mode).
+                    if (ps.key === "gearth") {
+                      const gitems = multiPhotosByRow.get(rid) ?? [];
+                      const gLb: LightboxItem[] = gitems.map((a) => ({ id: a.id, url: `/api/proxy/tasks/attachments/${a.id}/file`, alt: `${title} — ${ps.label}` }));
+                      return (
+                        <div key={ps.key} className="flex flex-col gap-1">
+                          <span className="text-[9px] font-semibold uppercase text-muted-foreground">{ps.label}</span>
+                          <div className="flex flex-col gap-1.5">
+                            {gitems.map((a) => (
+                              <div key={a.id} className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const idx = gLb.findIndex((it) => it.id === a.id);
+                                    onOpenPhoto?.(gLb, idx < 0 ? 0 : idx);
+                                  }}
+                                  className="block w-full"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={`/api/proxy/tasks/attachments/${a.id}/file`} alt={ps.label} className="h-20 w-full cursor-zoom-in rounded border object-cover transition hover:opacity-90" />
+                                </button>
+                                {editable && (
+                                  <button
+                                    type="button"
+                                    aria-label="Hapus foto"
+                                    onClick={() => onDeletePhoto?.(a.id)}
+                                    className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-destructive text-white shadow"
+                                  >
+                                    <X className="size-3" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                            {editable && (
+                              <button
+                                type="button"
+                                onClick={() => { pendingPhoto.current = { rowId: rid, slot }; photoInputRef.current?.click(); }}
+                                className="flex h-9 items-center justify-center gap-1 rounded border border-dashed text-[10px] text-muted-foreground hover:bg-muted"
+                              >
+                                <Upload className="size-3.5" /> Add
+                              </button>
+                            )}
+                            {gitems.length === 0 && !editable && (
+                              <div className="flex h-20 items-center justify-center rounded border border-dashed text-[10px] text-muted-foreground">—</div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
                     const att = photos[slot];
                     // Item lightbox untuk sektor ini (foto yg tersedia saja).
                     const sectorItems: LightboxItem[] = photos

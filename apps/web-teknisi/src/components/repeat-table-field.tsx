@@ -286,8 +286,61 @@ export function RepeatTableField({
                     {/* Slot foto per baris */}
                     <div className={`grid gap-2 ${photoSlots.length >= 4 ? "grid-cols-4" : "grid-cols-3"}`}>
                       {photoSlots.map((ps, slot) => {
-                        const att = attachments.find((a) => a.rowId === rowId && a.slot === slot);
+                        const isMulti = ps.key === "gearth"; // G-EARTH: bisa >1 foto
                         const isBusy = busy === `${rowId}:${slot}`;
+                        if (isMulti) {
+                          const items = attachments.filter((a) => a.rowId === rowId && a.slot === slot);
+                          return (
+                            <div key={ps.key} className="flex flex-col gap-1">
+                              <span className="text-[9px] font-semibold uppercase tracking-wide text-zinc-400">{ps.label}</span>
+                              <div className="flex flex-col gap-1.5">
+                                {items.map((att) => (
+                                  <div key={att.id} className="relative">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const lb = items.map((a) => ({ id: a.id, url: a.url, alt: ps.label }));
+                                        const startIndex = Math.max(0, lb.findIndex((it) => it.id === att.id));
+                                        setLightbox({ items: lb, startIndex });
+                                      }}
+                                      className="block w-full"
+                                    >
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img src={att.url} alt={ps.label} className="h-20 w-full cursor-zoom-in rounded-lg border object-cover transition active:opacity-80" />
+                                    </button>
+                                    {!locked && (
+                                      <button type="button" onClick={() => void onDeletePhoto(att.id)} aria-label="Hapus foto" className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-danger text-white">
+                                        <X className="size-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                                {!locked && (
+                                  <div className="flex gap-1">
+                                    {isBusy ? (
+                                      <div className="flex h-9 w-full items-center justify-center rounded-md border border-dashed">
+                                        <Loader2 className="size-4 animate-spin text-zinc-400" />
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <button type="button" onClick={() => triggerUpload(rowId, slot, true)} aria-label="Ambil foto G-EARTH" className="flex h-9 flex-1 items-center justify-center gap-1 rounded-md bg-primary text-[10px] font-medium text-white">
+                                          <Camera className="size-3.5" /> Ambil
+                                        </button>
+                                        <button type="button" onClick={() => triggerUpload(rowId, slot, false)} aria-label="Tambah foto G-EARTH" className="flex h-9 flex-1 items-center justify-center gap-1 rounded-md border text-[10px] font-medium">
+                                          <Plus className="size-3.5" /> Add
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                                {items.length === 0 && locked && (
+                                  <div className="flex h-20 items-center justify-center rounded-lg border border-dashed text-[10px] text-zinc-400">—</div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }
+                        const att = attachments.find((a) => a.rowId === rowId && a.slot === slot);
                         return (
                           <div key={ps.key} className="flex flex-col gap-1">
                             <span className="text-[9px] font-semibold uppercase tracking-wide text-zinc-400">{ps.label}</span>
@@ -296,9 +349,10 @@ export function RepeatTableField({
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    // Kumpulkan semua foto baris ini utk lightbox.
+                                    // Kumpulkan semua foto baris ini utk lightbox (slot tunggal saja).
                                     const rowPhotos = photoSlots
                                       .map((p, si) => {
+                                        if (p.key === "gearth") return null;
                                         const a = attachments.find((x) => x.rowId === rowId && x.slot === si);
                                         return a ? { id: a.id, url: a.url, alt: p.label } : null;
                                       })
