@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiGet } from "@/lib/api/client";
+import { requireAdmin } from "@/lib/require-admin";
 
 interface TemplateRow {
   id: string;
@@ -16,6 +17,7 @@ interface TemplateRow {
 }
 
 export default async function TemplatesPage() {
+  await requireAdmin();
   const templates = await apiGet<TemplateRow[]>("/templates");
 
   return (

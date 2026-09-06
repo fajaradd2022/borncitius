@@ -36,9 +36,9 @@ import { logoutAction } from "@/lib/api/auth-actions";
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/folders", label: "Folder & Task", icon: FolderKanban },
-  { href: "/templates", label: "Form Template", icon: FileStack },
-  { href: "/layouts", label: "Output Layout", icon: FileOutput },
-  { href: "/users", label: "User Management", icon: Users },
+  { href: "/templates", label: "Form Template", icon: FileStack, adminOnly: true },
+  { href: "/layouts", label: "Output Layout", icon: FileOutput, adminOnly: true },
+  { href: "/users", label: "User Management", icon: Users, adminOnly: true },
 ];
 
 export interface SidebarUser {
@@ -48,6 +48,8 @@ export interface SidebarUser {
 
 export function AppSidebar({ user }: { user: SidebarUser }) {
   const pathname = usePathname();
+  // SPV hanya melihat Dashboard, Folder & Task. Menu adminOnly disembunyikan.
+  const visibleNav = nav.filter((item) => !item.adminOnly || user.role === "admin");
 
   return (
     <Sidebar collapsible="icon">
@@ -68,7 +70,7 @@ export function AppSidebar({ user }: { user: SidebarUser }) {
           <SidebarGroupLabel>Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {nav.map((item) => {
+              {visibleNav.map((item) => {
                 const active =
                   pathname === item.href || pathname.startsWith(item.href + "/");
                 return (

@@ -1,6 +1,8 @@
 import { FormBuilderClient } from "@/components/form-builder/form-builder-client";
+import { requireAdmin } from "@/lib/require-admin";
 
-export default function NewTemplatePage() {
+export default async function NewTemplatePage() {
+  await requireAdmin();
   return (
     <FormBuilderClient
       templateName="Template Baru"

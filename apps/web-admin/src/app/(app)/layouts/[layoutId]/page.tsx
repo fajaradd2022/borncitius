@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { LayoutBuilderClient } from "@/components/layout-builder/layout-builder-client";
 import { apiGet, ApiError } from "@/lib/api/client";
+import { requireAdmin } from "@/lib/require-admin";
 import { toBuilderBlocks, type ApiLayout } from "@/lib/api/layout-mapper";
 import type { TaskTemplate, TemplateField } from "@/lib/types";
 
@@ -9,6 +10,7 @@ export default async function LayoutEditPage({
 }: {
   params: Promise<{ layoutId: string }>;
 }) {
+  await requireAdmin();
   const { layoutId } = await params;
 
   let layout: ApiLayout;

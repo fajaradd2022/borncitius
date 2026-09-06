@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { FormBuilderClient } from "@/components/form-builder/form-builder-client";
 import { apiGet, ApiError } from "@/lib/api/client";
+import { requireAdmin } from "@/lib/require-admin";
 import type { TemplateField } from "@/lib/types";
 
 interface ApiTemplate {
@@ -16,6 +17,7 @@ export default async function TemplateBuilderPage({
 }: {
   params: Promise<{ templateId: string }>;
 }) {
+  await requireAdmin();
   const { templateId } = await params;
 
   // Pengambilan data dan render dipisah: JSX di dalam try/catch tidak akan
