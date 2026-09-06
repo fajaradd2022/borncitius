@@ -87,6 +87,7 @@ export function RepeatTableField({
   const filterCol = columns.find((c) => c.filter);
 
   const scenarios = useMemo(() => {
+    if (!scenarioCol) return ["__all__"]; // tabel tanpa kolom scenario: satu grup
     const set = new Set<string>();
     rows.forEach((r) => scenarioCol && r[scenarioCol.key] && set.add(r[scenarioCol.key]));
     return Array.from(set);
@@ -221,13 +222,13 @@ export function RepeatTableField({
 
       {scenarios.map((scenario) => {
         const scenarioRows = rows
-          .filter((r) => scenarioCol && r[scenarioCol.key] === scenario)
+          .filter((r) => (!scenarioCol ? true : r[scenarioCol.key] === scenario))
           .filter((r) => !filter || (filterCol && r[filterCol.key] === filter));
         if (scenarioRows.length === 0 && filter) return null;
         return (
           <div key={scenario} className="rounded-xl border border-border">
             <div className="flex items-center justify-between border-b bg-muted/50 px-3 py-2">
-              <span className="text-xs font-semibold">{scenario}</span>
+              <span className="text-xs font-semibold">{scenarioCol ? scenario : label}</span>
               {!locked && (
                 <button type="button" onClick={() => addRow(scenario)} className="flex items-center gap-1 rounded-lg bg-primary px-2 py-1 text-xs font-semibold text-white active:opacity-90">
                   <Plus className="size-3.5" /> Tambah Baris

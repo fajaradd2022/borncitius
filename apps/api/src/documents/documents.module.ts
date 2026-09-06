@@ -234,9 +234,13 @@ class DocumentsController {
     // Bila template punya field repeat_table (mis. "Data Test Call") dan layout
     // belum menyusun blok manual, bangun otomatis: tabel TEST INFORMATION +
     // TEST RESULTS + grid foto 3-kolom per sektor. Ini meniru dokumen customer.
+    const JUSTIF_LABEL = 'JUSTIFICATION AND DT CHRONOLOGY';
     const repeatField = task.fields.find(
-      (f) => templateFields.find((t) => t.label === f.label)?.fieldType === 'repeat_table',
+      (f) =>
+        f.label !== JUSTIF_LABEL &&
+        templateFields.find((t) => t.label === f.label)?.fieldType === 'repeat_table',
     );
+    const justifField = task.fields.find((f) => f.label === JUSTIF_LABEL && f.fieldType === 'repeat_table');
     const hasCustomBlocks = layout.blocks.some(
       (b) => b.type !== 'header' && b.type !== 'footer',
     );
@@ -302,12 +306,17 @@ class DocumentsController {
       // Peta rowId -> [attachment per slot].
       const attByRow = new Map<string, Array<{ absolutePath: string; mimeType: string } | null>>();
       const attNoRow: Array<{ absolutePath: string; mimeType: string }> = [];
+      // Peta rowId -> foto pertama (untuk tabel non-slot spt Justification evidence),
+      // tanpa filter slot export.
+      const anyPhotoByRow = new Map<string, { absolutePath: string; mimeType: string }>();
       for (const pf of photoFieldsAll) {
         for (const a of pf.attachments ?? []) {
           const meta = (a.watermarkMetadata ?? {}) as Record<string, unknown>;
           const rowId = typeof meta._tcRowId === 'string' ? meta._tcRowId : '';
           const srcSlot = Number(meta._tcSlot);
-          // Lewati slot yang dikecualikan dari export (mis. G-EARTH).
+          const itemAny = { absolutePath: this.storage.absolutePathFor(a.storagePath), mimeType: a.mimeType };
+          if (rowId && !anyPhotoByRow.has(rowId)) anyPhotoByRow.set(rowId, itemAny);
+          // Lewati slot yang dikecualikan dari export (mis. G-EARTH) untuk GRID.
           if (isFinite(srcSlot) && !exportIndexBySrc.has(srcSlot)) continue;
           const slot = exportIndexBySrc.has(srcSlot) ? exportIndexBySrc.get(srcSlot)! : NaN;
           const item = { absolutePath: this.storage.absolutePathFor(a.storagePath), mimeType: a.mimeType };
@@ -349,6 +358,36 @@ class DocumentsController {
       blocks.push({ type: 'test_result_table', label: 'TEST RESULTS', orderIndex: ord++, displayStyle: null, config: {}, tableData: { columns, rows, remarkRules }, siteInfo });
       if (photoUnits.length > 0) {
         blocks.push({ type: 'photo_grid_3', label: 'Dokumentasi Foto', orderIndex: ord++, displayStyle: null, config: {}, border: { outer: true, inner: true, width: 1, color: '#000000' }, photoGrid: photoUnits, siteInfo });
+      }
+
+      // JUSTIFICATION AND DT CHRONOLOGY — tabel di halaman terakhir.
+      // Kolom Date/Time/Chronology + 1 foto evidence per baris. Foto evidence
+      // ditandai _tcRowId = _id baris justification (di field photo warehouse).
+      if (justifField) {
+        let jrows: Array<Record<string, unknown>> = [];
+        const parseJust = (v: unknown, depth = 0): void => {
+          if (depth > 3) return;
+          if (Array.isArray(v)) { jrows = v as Array<Record<string, unknown>>; return; }
+          if (typeof v === 'string') {
+            const t = v.trim();
+            if (t.startsWith('[') || t.startsWith('"')) { try { parseJust(JSON.parse(t), depth + 1); } catch { /* abaikan */ } }
+          }
+        };
+        parseJust(justifField.value);
+        if (jrows.length > 0) {
+          const justRows = jrows.map((r) => {
+            const rid = String(r._id ?? '');
+            // Ambil foto evidence yang tertaut ke baris ini (tanpa filter slot).
+            const ev = anyPhotoByRow.get(rid) ?? null;
+            return {
+              date: String(r.date ?? ''),
+              time: String(r.time ?? ''),
+              chronology: String(r.chronology ?? ''),
+              evidence: ev,
+            };
+          });
+          blocks.push({ type: 'justification_table', label: 'JUSTIFICATION AND DT CHRONOLOGY', orderIndex: ord++, displayStyle: null, config: {}, border: { outer: true, inner: true, width: 1, color: '#000000' }, justRows, siteInfo });
+        }
       }
     }
 

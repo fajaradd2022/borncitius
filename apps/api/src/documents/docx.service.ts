@@ -71,6 +71,11 @@ export class DocxService {
           for (const el of await this.buildPhotoGrid(block)) children.push(el);
           break;
 
+        case 'justification_table':
+          children.push(new Paragraph({ pageBreakBefore: true, children: [] }));
+          children.push(await this.buildJustificationTable(block));
+          break;
+
         case 'footer':
           if (block.config?.footerNote) {
             children.push(new Paragraph({ text: String(block.config.footerNote), spacing: { before: 240 } }));
@@ -404,5 +409,50 @@ export class DocxService {
       out.push(new Table({ width: { size: 9600, type: WidthType.DXA }, columnWidths: [3200, 3200, 3200], rows }));
     }
     return out;
+  }
+
+  // ---- Tabel JUSTIFICATION AND DT CHRONOLOGY ----
+  private async buildJustificationTable(block: RenderBlock): Promise<Table> {
+    const jrows = block.justRows ?? [];
+    const cols = [
+      { key: 'date', header: 'Date', w: 1200 },
+      { key: 'time', header: 'Time', w: 1000 },
+      { key: 'chronology', header: 'Chronology', w: 4800 },
+      { key: 'evidence', header: 'Evidance', w: 2600 },
+    ];
+    const rows: TableRow[] = [];
+    // Banner judul (teal, teks putih)
+    rows.push(new TableRow({
+      tableHeader: true,
+      children: [new TableCell({
+        columnSpan: cols.length,
+        shading: { type: ShadingType.CLEAR, color: 'auto', fill: this.C_TITLE },
+        borders: this.noBorders(), verticalAlign: VerticalAlign.CENTER,
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'JUSTIFICATION AND DT CHRONOLOGY', bold: true, color: 'FFFFFF', size: 22 })] })],
+      })],
+    }));
+    // Header kolom (biru muda)
+    rows.push(new TableRow({
+      tableHeader: true,
+      children: cols.map((c) => this.cellText(c.header, { bold: true, fill: this.C_HEADER, size: 16 })),
+    }));
+    // Baris data
+    for (const jr of jrows) {
+      const cells: TableCell[] = [];
+      for (const c of cols) {
+        if (c.key === 'evidence') {
+          cells.push(await this.imageCell(jr.evidence ?? null));
+        } else {
+          const val = String((jr as Record<string, unknown>)[c.key] ?? '');
+          cells.push(this.cellText(val, { align: c.key === 'chronology' ? 'left' : 'center', size: 16 }));
+        }
+      }
+      rows.push(new TableRow({ children: cells }));
+    }
+    return new Table({
+      width: { size: cols.reduce((s, c) => s + c.w, 0), type: WidthType.DXA },
+      columnWidths: cols.map((c) => c.w),
+      rows,
+    });
   }
 }

@@ -24,7 +24,7 @@ export interface TextStyle {
 }
 
 /** Tipe blok sintetis (dibangun di buildBlocks, bukan di DB) untuk template khusus. */
-export type SyntheticBlockType = 'test_info_table' | 'test_result_table' | 'photo_grid_3';
+export type SyntheticBlockType = 'test_info_table' | 'test_result_table' | 'photo_grid_3' | 'justification_table';
 
 export interface RenderBlock {
   type: LayoutBlockType | SyntheticBlockType;
@@ -60,6 +60,8 @@ export interface RenderBlock {
   siteInfo?: { siteId?: string; siteName?: string };
   /** Grid foto per sektor (test-call): daftar unit {title, photos[3]}. */
   photoGrid?: Array<{ scenarioTitle?: string; title: string; siteTag?: string; photos: Array<{ absolutePath: string; mimeType: string } | null> }>;
+  /** Baris tabel JUSTIFICATION AND DT CHRONOLOGY (date/time/chronology + evidence foto). */
+  justRows?: Array<{ date: string; time: string; chronology: string; evidence: { absolutePath: string; mimeType: string } | null }>;
 }
 
 export interface RenderContext {
@@ -760,6 +762,98 @@ export class PdfService {
               }
             }
             y = photoY - photoH;
+          }
+          break;
+        }
+
+        case 'justification_table': {
+          // Tabel JUSTIFICATION AND DT CHRONOLOGY di halaman terakhir.
+          // Kolom: Date | Time | Chronology | Evidance (foto). Selalu mulai
+          // halaman baru agar tabel utuh.
+          const jrows = block.justRows ?? [];
+          startFreshPage();
+          const titleH = 20;
+          const hdrH = 16;
+          const rowH = 90; // tinggi baris cukup untuk foto evidence
+          // Lebar kolom (proporsional contoh): Date, Time, Chronology, Evidance.
+          const wDate = 70, wTime = 60, wEvid = 150;
+          const wChron = contentWidth - wDate - wTime - wEvid;
+          const cols = [
+            { key: 'date', header: 'Date', w: wDate },
+            { key: 'time', header: 'Time', w: wTime },
+            { key: 'chronology', header: 'Chronology', w: wChron },
+            { key: 'evidence', header: 'Evidance', w: wEvid },
+          ];
+          const bClr = rgb(0, 0, 0);
+          const titleBg = rgb(0x0b / 255, 0x76 / 255, 0x9f / 255);
+          const hdrBg = rgb(0xc1 / 255, 0xe4 / 255, 0xf5 / 255);
+
+          // Banner judul (teal, teks putih).
+          ensureSpace(titleH + hdrH + rowH);
+          page.drawRectangle({ x: MARGIN, y: y - titleH, width: contentWidth, height: titleH, color: titleBg, borderColor: bClr, borderWidth: 1 });
+          const tTxt = 'JUSTIFICATION AND DT CHRONOLOGY';
+          const tW = bold.widthOfTextAtSize(tTxt, 11);
+          page.drawText(tTxt, { x: MARGIN + (contentWidth - tW) / 2, y: y - 14, size: 11, font: bold, color: rgb(1, 1, 1) });
+          y -= titleH;
+
+          // Header kolom (biru muda, teks hitam).
+          let hx = MARGIN;
+          for (const c of cols) {
+            page.drawRectangle({ x: hx, y: y - hdrH, width: c.w, height: hdrH, color: hdrBg, borderColor: bClr, borderWidth: 1 });
+            const w = bold.widthOfTextAtSize(c.header, 8);
+            page.drawText(c.header, { x: hx + (c.w - w) / 2, y: y - 11, size: 8, font: bold, color: rgb(0, 0, 0) });
+            hx += c.w;
+          }
+          y -= hdrH;
+
+          // Baris data.
+          for (const jr of jrows) {
+            if (y - rowH < MARGIN + 20) {
+              startFreshPage();
+              // Ulang header kolom di halaman baru.
+              let hx2 = MARGIN;
+              for (const c of cols) {
+                page.drawRectangle({ x: hx2, y: y - hdrH, width: c.w, height: hdrH, color: hdrBg, borderColor: bClr, borderWidth: 1 });
+                const w = bold.widthOfTextAtSize(c.header, 8);
+                page.drawText(c.header, { x: hx2 + (c.w - w) / 2, y: y - 11, size: 8, font: bold, color: rgb(0, 0, 0) });
+                hx2 += c.w;
+              }
+              y -= hdrH;
+            }
+            let cx = MARGIN;
+            const rowTop = y;
+            for (const c of cols) {
+              page.drawRectangle({ x: cx, y: rowTop - rowH, width: c.w, height: rowH, borderColor: bClr, borderWidth: 1 });
+              if (c.key === 'evidence') {
+                if (jr.evidence) {
+                  try {
+                    const embedded = await this.embedImage(doc, jr.evidence);
+                    if (embedded) {
+                      const pad = 4;
+                      const scale = Math.min((c.w - pad * 2) / embedded.width, (rowH - pad * 2) / embedded.height);
+                      const w = embedded.width * scale;
+                      const h = embedded.height * scale;
+                      page.drawImage(embedded, { x: cx + (c.w - w) / 2, y: rowTop - rowH + (rowH - h) / 2, width: w, height: h });
+                    }
+                  } catch (err) {
+                    this.logger.warn(`Evidence foto gagal: ${String(err)}`);
+                  }
+                }
+              } else {
+                const raw = String((jr as Record<string, unknown>)[c.key] ?? '');
+                const align = c.key === 'chronology' ? 'left' : 'center';
+                const lines = wrapText(raw, font, 8, c.w - 8);
+                let ty = rowTop - 12;
+                for (const ln of lines.slice(0, Math.floor((rowH - 8) / 10))) {
+                  const lw = font.widthOfTextAtSize(ln, 8);
+                  const tx = align === 'center' ? cx + (c.w - lw) / 2 : cx + 4;
+                  page.drawText(ln, { x: tx, y: ty, size: 8, font, color: rgb(0, 0, 0) });
+                  ty -= 10;
+                }
+              }
+              cx += c.w;
+            }
+            y = rowTop - rowH;
           }
           break;
         }
