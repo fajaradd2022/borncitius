@@ -14,6 +14,8 @@ export interface MirrorTarget {
   taskId: string;
   /** Judul field foto, jadi nama subfolder — mis. "Posisi Perangkat Fortigate FG40F". */
   fieldLabel: string;
+  /** Subfolder tambahan di dalam fieldLabel, mis. Sector/Cell "1/01" untuk Test Call. */
+  subFolder?: string | null;
   fileName: string;
 }
 
@@ -54,16 +56,21 @@ export class DriveMirrorService {
     return this.enabled && this.rootFolderId.length > 0;
   }
 
-  /** Struktur: BORN CITIUS/{Klien}/{Site}_{taskId}/{Judul Field}/{file} */
+  /** Struktur: BORN CITIUS/{Klien}/{Site}_{taskId}/{Judul Field}/[{Sub}/]{file} */
   buildRemotePath(target: MirrorTarget): string {
     const s = StorageService.sanitizeSegment;
     const taskFolder = target.siteId
       ? `${s(target.siteId)}_${s(target.taskId)}`
       : s(target.taskId);
 
-    return [this.basePath, s(target.clientFolder), taskFolder, s(target.fieldLabel), target.fileName]
-      .map((p) => p.trim())
-      .join('/');
+    const segments = [this.basePath, s(target.clientFolder), taskFolder, s(target.fieldLabel)];
+    // Subfolder per Sector/Cell (mis. "1/01" → "1-01") bila ada.
+    if (target.subFolder && target.subFolder.trim()) {
+      segments.push(s(target.subFolder));
+    }
+    segments.push(target.fileName);
+
+    return segments.map((p) => p.trim()).join('/');
   }
 
   private baseFlags(): string[] {

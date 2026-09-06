@@ -90,6 +90,42 @@ export class MirrorQueue implements OnModuleInit, OnModuleDestroy {
       .catch(() => undefined);
   }
 
+  /**
+   * Untuk foto Test Call: cari Sector/Cell dari baris tabel berdasarkan
+   * watermarkMetadata._tcRowId, lalu bentuk nama subfolder "SCEN{n}_SEC{cell}".
+   * Mengembalikan null bila bukan foto tabel (tidak ada _tcRowId).
+   */
+  private async resolveSectorSubfolder(
+    taskId: string,
+    watermarkMetadata: unknown,
+  ): Promise<string | null> {
+    const meta = (watermarkMetadata ?? {}) as Record<string, unknown>;
+    const rowId = typeof meta._tcRowId === 'string' ? meta._tcRowId : '';
+    if (!rowId) return null; // bukan foto tabel Test Call
+
+    const repeatField = await this.prisma.taskInstanceField.findFirst({
+      where: { taskInstanceId: taskId, fieldType: 'repeat_table' },
+      select: { value: true },
+    });
+    if (!repeatField) return null;
+
+    // value bisa array, string JSON, atau double-encoded — decode bertingkat.
+    let rows: Array<Record<string, unknown>> = [];
+    let v: unknown = repeatField.value;
+    for (let i = 0; i < 3; i++) {
+      if (Array.isArray(v)) { rows = v as Array<Record<string, unknown>>; break; }
+      if (typeof v === 'string') { try { v = JSON.parse(v); } catch { break; } } else break;
+    }
+    const row = rows.find((r) => String(r._id ?? '') === rowId);
+    if (!row) return `Baris_${rowId}`; // fallback aman
+
+    const scen = /(\d+)/.exec(String(row.scenario ?? ''))?.[1] ?? String(row.scenario ?? '');
+    const cell = String(row.sectorCell ?? '').trim();
+    if (scen && cell) return `SCEN${scen}_SEC${cell}`;
+    if (cell) return cell;
+    return `Baris_${rowId}`;
+  }
+
   private async process(data: MirrorJobData): Promise<void> {
     const attachment = await this.prisma.attachment.findUnique({
       where: { id: data.attachmentId },
@@ -108,11 +144,16 @@ export class MirrorQueue implements OnModuleInit, OnModuleDestroy {
     const field = attachment.taskInstanceField;
     const task = field.taskInstance;
 
+    // Test Call: foto tertaut ke baris tabel via watermarkMetadata._tcRowId.
+    // Buat subfolder per Sector/Cell agar rapi di Drive.
+    const subFolder = await this.resolveSectorSubfolder(task.id, attachment.watermarkMetadata);
+
     const result = await this.drive.upload(this.storage.absolutePathFor(attachment.storagePath), {
       clientFolder: task.folder.name,
       siteId: task.siteId,
       taskId: task.id,
       fieldLabel: field.label,
+      subFolder,
       fileName: attachment.storagePath.split('/').pop() ?? attachment.originalName,
     });
 
