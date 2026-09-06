@@ -706,6 +706,8 @@ export class PdfService {
           const halfArea = (topY - MARGIN - UNIT_GAP) / 2;
           const photoH = halfArea - titleH - colHdrH;
           const unitH = titleH + colHdrH + photoH;
+          // Blok foto SELALU mulai di halaman baru (terpisah dari tabel/Notes).
+          startFreshPage();
           for (const unit of units) {
             // Mulai halaman baru bila sisa ruang tidak cukup untuk satu unit.
             if (y - unitH < MARGIN) startFreshPage();
