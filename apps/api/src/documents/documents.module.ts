@@ -309,6 +309,8 @@ class DocumentsController {
       // Peta rowId -> foto pertama (untuk tabel non-slot spt Justification evidence),
       // tanpa filter slot export.
       const anyPhotoByRow = new Map<string, { absolutePath: string; mimeType: string }>();
+      // Peta rowId -> SEMUA foto (untuk Justification: tampilkan semua evidence).
+      const allPhotosByRow = new Map<string, Array<{ absolutePath: string; mimeType: string }>>();
       for (const pf of photoFieldsAll) {
         for (const a of pf.attachments ?? []) {
           const meta = (a.watermarkMetadata ?? {}) as Record<string, unknown>;
@@ -316,6 +318,10 @@ class DocumentsController {
           const srcSlot = Number(meta._tcSlot);
           const itemAny = { absolutePath: this.storage.absolutePathFor(a.storagePath), mimeType: a.mimeType };
           if (rowId && !anyPhotoByRow.has(rowId)) anyPhotoByRow.set(rowId, itemAny);
+          if (rowId) {
+            if (!allPhotosByRow.has(rowId)) allPhotosByRow.set(rowId, []);
+            allPhotosByRow.get(rowId)!.push(itemAny);
+          }
           // Lewati slot yang dikecualikan dari export (mis. G-EARTH) untuk GRID.
           if (isFinite(srcSlot) && !exportIndexBySrc.has(srcSlot)) continue;
           const slot = exportIndexBySrc.has(srcSlot) ? exportIndexBySrc.get(srcSlot)! : NaN;
@@ -379,11 +385,13 @@ class DocumentsController {
             const rid = String(r._id ?? '');
             // Ambil foto evidence yang tertaut ke baris ini (tanpa filter slot).
             const ev = anyPhotoByRow.get(rid) ?? null;
+            const evs = allPhotosByRow.get(rid) ?? [];
             return {
               date: String(r.date ?? ''),
               time: String(r.time ?? ''),
               chronology: String(r.chronology ?? ''),
               evidence: ev,
+              evidences: evs,
             };
           });
           blocks.push({ type: 'justification_table', label: 'JUSTIFICATION AND DT CHRONOLOGY', orderIndex: ord++, displayStyle: null, config: {}, border: { outer: true, inner: true, width: 1, color: '#000000' }, justRows, siteInfo });

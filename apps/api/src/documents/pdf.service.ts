@@ -61,7 +61,7 @@ export interface RenderBlock {
   /** Grid foto per sektor (test-call): daftar unit {title, photos[3]}. */
   photoGrid?: Array<{ scenarioTitle?: string; title: string; siteTag?: string; photos: Array<{ absolutePath: string; mimeType: string } | null> }>;
   /** Baris tabel JUSTIFICATION AND DT CHRONOLOGY (date/time/chronology + evidence foto). */
-  justRows?: Array<{ date: string; time: string; chronology: string; evidence: { absolutePath: string; mimeType: string } | null }>;
+  justRows?: Array<{ date: string; time: string; chronology: string; evidence: { absolutePath: string; mimeType: string } | null; evidences?: Array<{ absolutePath: string; mimeType: string }> }>;
 }
 
 export interface RenderContext {
@@ -808,7 +808,15 @@ export class PdfService {
 
           // Baris data.
           for (const jr of jrows) {
-            if (y - rowH < MARGIN + 20) {
+            // Tinggi baris menyesuaikan jumlah foto evidence (multi-foto).
+            const evList = (jr.evidences && jr.evidences.length > 0)
+              ? jr.evidences
+              : (jr.evidence ? [jr.evidence] : []);
+            const nEv = Math.max(1, evList.length);
+            // Susun foto vertikal di kolom Evidance; tiap foto ± 84pt tinggi.
+            const perPhotoH = 84;
+            const dynRowH = Math.max(rowH, nEv * perPhotoH + 6);
+            if (y - dynRowH < MARGIN + 20) {
               startFreshPage();
               // Ulang header kolom di halaman baru.
               let hx2 = MARGIN;
@@ -823,28 +831,32 @@ export class PdfService {
             let cx = MARGIN;
             const rowTop = y;
             for (const c of cols) {
-              page.drawRectangle({ x: cx, y: rowTop - rowH, width: c.w, height: rowH, borderColor: bClr, borderWidth: 1 });
+              page.drawRectangle({ x: cx, y: rowTop - dynRowH, width: c.w, height: dynRowH, borderColor: bClr, borderWidth: 1 });
               if (c.key === 'evidence') {
-                if (jr.evidence) {
+                // Tampilkan SEMUA foto evidence, ditumpuk vertikal.
+                let py = rowTop - 3;
+                const cellH = dynRowH / nEv;
+                for (const ev of evList) {
                   try {
-                    const embedded = await this.embedImage(doc, jr.evidence);
+                    const embedded = await this.embedImage(doc, ev);
                     if (embedded) {
-                      const pad = 4;
-                      const scale = Math.min((c.w - pad * 2) / embedded.width, (rowH - pad * 2) / embedded.height);
+                      const pad = 3;
+                      const scale = Math.min((c.w - pad * 2) / embedded.width, (cellH - pad * 2) / embedded.height);
                       const w = embedded.width * scale;
                       const h = embedded.height * scale;
-                      page.drawImage(embedded, { x: cx + (c.w - w) / 2, y: rowTop - rowH + (rowH - h) / 2, width: w, height: h });
+                      page.drawImage(embedded, { x: cx + (c.w - w) / 2, y: py - (cellH - h) / 2 - h, width: w, height: h });
                     }
                   } catch (err) {
                     this.logger.warn(`Evidence foto gagal: ${String(err)}`);
                   }
+                  py -= cellH;
                 }
               } else {
                 const raw = String((jr as Record<string, unknown>)[c.key] ?? '');
                 const align = c.key === 'chronology' ? 'left' : 'center';
                 const lines = wrapText(raw, font, 8, c.w - 8);
                 let ty = rowTop - 12;
-                for (const ln of lines.slice(0, Math.floor((rowH - 8) / 10))) {
+                for (const ln of lines.slice(0, Math.floor((dynRowH - 8) / 10))) {
                   const lw = font.widthOfTextAtSize(ln, 8);
                   const tx = align === 'center' ? cx + (c.w - lw) / 2 : cx + 4;
                   page.drawText(ln, { x: tx, y: ty, size: 8, font, color: rgb(0, 0, 0) });
@@ -853,7 +865,7 @@ export class PdfService {
               }
               cx += c.w;
             }
-            y = rowTop - rowH;
+            y = rowTop - dynRowH;
           }
           break;
         }

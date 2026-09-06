@@ -367,6 +367,34 @@ export class DocxService {
     });
   }
 
+  /** Sel berisi BANYAK foto (evidence Justification) — ditumpuk vertikal. */
+  private async multiImageCell(photos: Array<{ absolutePath: string; mimeType: string }>): Promise<TableCell> {
+    if (!photos || photos.length === 0) {
+      return new TableCell({
+        verticalAlign: VerticalAlign.CENTER,
+        borders: this.noBorders(),
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '—', size: 14 })] })],
+      });
+    }
+    const paras: Paragraph[] = [];
+    for (const p of photos) {
+      let run: ImageRun | TextRun;
+      try {
+        const data = await readFile(p.absolutePath);
+        const ext = p.mimeType.includes('png') ? 'png' : 'jpg';
+        run = new ImageRun({ data, transformation: { width: 150, height: 200 }, type: ext as 'png' | 'jpg' });
+      } catch {
+        run = new TextRun({ text: '[foto tidak dapat dimuat]', italics: true, size: 14 });
+      }
+      paras.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 60 }, children: [run] }));
+    }
+    return new TableCell({
+      verticalAlign: VerticalAlign.CENTER,
+      borders: this.noBorders(),
+      children: paras,
+    });
+  }
+
   private async buildPhotoGrid(block: RenderBlock): Promise<(Paragraph | Table)[]> {
     const out: (Paragraph | Table)[] = [];
     const units = block.photoGrid ?? [];
@@ -441,7 +469,10 @@ export class DocxService {
       const cells: TableCell[] = [];
       for (const c of cols) {
         if (c.key === 'evidence') {
-          cells.push(await this.imageCell(jr.evidence ?? null));
+          const evList = (jr.evidences && jr.evidences.length > 0)
+            ? jr.evidences
+            : (jr.evidence ? [jr.evidence] : []);
+          cells.push(await this.multiImageCell(evList));
         } else {
           const val = String((jr as Record<string, unknown>)[c.key] ?? '');
           cells.push(this.cellText(val, { align: c.key === 'chronology' ? 'left' : 'center', size: 16 }));
