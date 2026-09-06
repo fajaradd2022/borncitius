@@ -59,7 +59,7 @@ export interface RenderBlock {
   /** Konteks site (Site ID / Site Name) untuk header blok test-call. */
   siteInfo?: { siteId?: string; siteName?: string };
   /** Grid foto per sektor (test-call): daftar unit {title, photos[3]}. */
-  photoGrid?: Array<{ title: string; siteTag?: string; photos: Array<{ absolutePath: string; mimeType: string } | null> }>;
+  photoGrid?: Array<{ scenarioTitle?: string; title: string; siteTag?: string; photos: Array<{ absolutePath: string; mimeType: string } | null> }>;
 }
 
 export interface RenderContext {
@@ -689,45 +689,52 @@ export class PdfService {
         }
 
         case 'photo_grid_3': {
-          // Grid foto per sektor: DUA sektor per halaman (masing-masing setengah
-          // halaman), seperti template. Judul + 3 kolom (Speedtest / Youtube-Detik
-          // / Location), foto contain (rasio asli).
+          // Grid foto: SATU sektor per lembar. Struktur (persis template):
+          //   Banner "SPEEDTEST SCENARIO N" (teal 0B769F, teks putih)
+          //   Banner "SCENx_SECy (range m) SITE_ID" (biru muda DAE9F7, teks hitam)
+          //   Header 3 kolom SPEEDTEST / YOUTUBE/DETIK / LOCATION (DAE9F7)
+          //   3 kotak foto (contain, rasio asli)
           const units = block.photoGrid ?? [];
           const colHeaders = ['SPEEDTEST', 'YOUTUBE/DETIK', 'LOCATION'];
-          const bClr = rgb(0, 0, 0); // border hitam sesuai template
+          const bClr = rgb(0, 0, 0);
           const bW = bd?.width ?? 1;
+          const scenBg = hexToRgb('#0B769F') ?? rgb(0.04, 0.46, 0.62);
           const gridHdrBg = hexToRgb('#DAE9F7') ?? rgb(0.85, 0.91, 0.97);
           const siteTag = (block.siteInfo?.siteId && block.siteInfo?.siteName)
             ? `${block.siteInfo.siteId}_${block.siteInfo.siteName}`
             : (block.siteInfo?.siteId ?? '');
-          const titleH = 18, colHdrH = 16;
-          const UNIT_GAP = 14; // jarak antar dua unit di halaman yang sama
-          // Tinggi satu unit = setengah area konten halaman (2 unit / halaman).
-          const halfArea = (topY - MARGIN - UNIT_GAP) / 2;
-          const photoH = halfArea - titleH - colHdrH;
-          const unitH = titleH + colHdrH + photoH;
-          // Blok foto SELALU mulai di halaman baru (terpisah dari tabel/Notes).
-          startFreshPage();
+          const scenH = 22, titleH = 16, colHdrH = 16;
           for (const unit of units) {
-            // Mulai halaman baru bila sisa ruang tidak cukup untuk satu unit.
-            if (y - unitH < MARGIN) startFreshPage();
+            // Tiap sektor = satu lembar penuh sendiri.
+            startFreshPage();
             const top = y;
-            // Judul unit (banner) — bg DAE9F7, teks hitam, TANPA highlight kuning.
-            page.drawRectangle({ x: MARGIN, y: top - titleH, width: contentWidth, height: titleH, color: gridHdrBg, borderColor: bClr, borderWidth: bW });
+            // Foto mengisi ± setengah tinggi konten (seperti proporsi template).
+            const photoH = (topY - MARGIN) * 0.5;
+
+            // Banner 1: SPEEDTEST SCENARIO N (teal, teks putih)
+            const scenTitle = unit.scenarioTitle ?? 'SPEEDTEST';
+            page.drawRectangle({ x: MARGIN, y: top - scenH, width: contentWidth, height: scenH, color: scenBg, borderColor: bClr, borderWidth: bW });
+            const stw = bold.widthOfTextAtSize(scenTitle, 12);
+            page.drawText(scenTitle, { x: MARGIN + (contentWidth - stw) / 2, y: top - 16, size: 12, font: bold, color: rgb(1, 1, 1) });
+
+            // Banner 2: sector + site (biru muda, teks hitam)
+            const titY = top - scenH;
+            page.drawRectangle({ x: MARGIN, y: titY - titleH, width: contentWidth, height: titleH, color: gridHdrBg, borderColor: bClr, borderWidth: bW });
             const unitSiteTag = unit.siteTag ?? siteTag;
             const fullTitle = unitSiteTag ? `${unit.title} ${unitSiteTag}` : unit.title;
-            const tsz = 11;
-            const tw2 = bold.widthOfTextAtSize(fullTitle, tsz);
-            page.drawText(fullTitle, { x: MARGIN + (contentWidth - tw2) / 2, y: top - 13, size: tsz, font: bold, color: rgb(0, 0, 0) });
-            // Header 3 kolom — bg DAE9F7, teks hitam (sesuai template).
+            const tw2 = bold.widthOfTextAtSize(fullTitle, 10);
+            page.drawText(fullTitle, { x: MARGIN + (contentWidth - tw2) / 2, y: titY - 11, size: 10, font: bold, color: rgb(0, 0, 0) });
+
+            // Header 3 kolom (biru muda, teks hitam)
             const cw = contentWidth / 3;
-            const hdrY = top - titleH;
+            const hdrY = titY - titleH;
             colHeaders.forEach((h, i) => {
               page.drawRectangle({ x: MARGIN + i * cw, y: hdrY - colHdrH, width: cw, height: colHdrH, color: gridHdrBg, borderColor: bClr, borderWidth: bW });
               const w = bold.widthOfTextAtSize(h, 9);
               page.drawText(h, { x: MARGIN + i * cw + (cw - w) / 2, y: hdrY - 11, size: 9, font: bold, color: rgb(0, 0, 0) });
             });
-            // 3 kotak foto (setengah halaman)
+
+            // 3 kotak foto
             const photoY = hdrY - colHdrH;
             for (let i = 0; i < 3; i++) {
               const cellX = MARGIN + i * cw;
@@ -748,7 +755,7 @@ export class PdfService {
                 }
               }
             }
-            y = photoY - photoH - UNIT_GAP;
+            y = photoY - photoH;
           }
           break;
         }

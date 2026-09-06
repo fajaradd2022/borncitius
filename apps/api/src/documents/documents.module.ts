@@ -322,9 +322,9 @@ class DocumentsController {
           const siteTag = siteInfo.siteId && siteInfo.siteName
             ? `${siteInfo.siteId}_${siteInfo.siteName}`
             : (siteInfo.siteId ?? '');
-          return { title: `SCEN${n}_SEC${cell} (${dist}m)`, siteTag, photos };
+          return { scenarioTitle: `SPEEDTEST SCENARIO ${n}`, title: `SCEN${n}_SEC${cell} (${dist}m)`, siteTag, photos };
         })
-        .filter((u): u is { title: string; siteTag: string; photos: Array<{ absolutePath: string; mimeType: string } | null> } => u !== null);
+        .filter((u): u is { scenarioTitle: string; title: string; siteTag: string; photos: Array<{ absolutePath: string; mimeType: string } | null> } => u !== null);
 
       // Validasi sanity data (warning di log; tidak menggagalkan build).
       this.validateTestCallRows(rows);
