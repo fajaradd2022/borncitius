@@ -154,15 +154,37 @@ export function TaskForm({ task }: { task: FormTask }) {
   }
 
   // --- TestCall: foto tertaut ke baris tabel ---
-  // Bila ada field repeat_table, SEMUA field photo menjadi "gudang foto" yang
-  // dikelola dari dalam tabel (tidak ditampilkan sebagai field foto terpisah).
-  // Upload memakai field photo pertama sebagai penyimpan.
+  // Bila ada field repeat_table, field "gudang foto" (Dokumentasi Foto) dikelola
+  // dari dalam tabel & disembunyikan. Field photo LAIN (mis. Clock in/out) tetap
+  // tampil normal sebagai input foto biasa.
   const repeatField = task.fields.find((f) => f.fieldType === "repeat_table");
-  const photoFields = repeatField ? task.fields.filter((f) => f.fieldType === "photo") : [];
-  const docPhotoField = photoFields[0];
-  const hiddenPhotoIds = new Set(photoFields.map((f) => f.id));
+  const allPhotoFields = repeatField ? task.fields.filter((f) => f.fieldType === "photo") : [];
+  const isWarehousePhoto = (f: FormField): boolean => {
+    const hasTagged = (f.attachments ?? []).some((a) => {
+      const m = (a.metadata ?? {}) as Record<string, unknown>;
+      return typeof m._tcRowId === "string" && m._tcRowId !== "";
+    });
+    const label = (f.label ?? "").toLowerCase();
+    const section = (f.section ?? "").toLowerCase();
+    return (
+      hasTagged ||
+      label.includes("dokumentasi") ||
+      section.includes("dokumentasi") ||
+      section.includes("foto scenario") ||
+      /scen\d+_sec/i.test(f.label ?? "")
+    );
+  };
+  const photoFields = allPhotoFields.filter(isWarehousePhoto);
+  const docPhotoField =
+    photoFields[0] ?? allPhotoFields.find((f) => (f.label ?? "").toLowerCase().includes("dokumentasi"));
+  const hiddenPhotoIds = new Set(
+    (docPhotoField ? [...photoFields, docPhotoField] : photoFields).map((f) => f.id),
+  );
 
-  const photoAttachments: RowAttachment[] = photoFields.flatMap((pf) =>
+  const warehouseFields = docPhotoField
+    ? Array.from(new Map([...photoFields, docPhotoField].map((f) => [f.id, f])).values())
+    : photoFields;
+  const photoAttachments: RowAttachment[] = warehouseFields.flatMap((pf) =>
     (pf.attachments ?? []).map((a) => {
       const meta = (a.metadata ?? {}) as Record<string, unknown>;
       return {

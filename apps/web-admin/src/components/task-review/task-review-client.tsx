@@ -179,13 +179,31 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
     () => task.fields.filter((f) => f.fieldType !== "section"),
     [task.fields]
   );
-  // TestCall: bila ada repeat_table, SEMUA field photo jadi "gudang foto" yang
-  // ditampilkan di dalam tabel (bukan sebagai field terpisah).
+  // TestCall: bila ada repeat_table, hanya field "gudang foto" (Dokumentasi Foto,
+  // atau field yg fotonya bertag _tcRowId) yang dikelola di dalam tabel &
+  // disembunyikan. Field photo lain (mis. Clock in/out) tetap tampil normal.
   const docPhotoFieldIds = useMemo(() => {
     const hasRepeat = task.fields.some((f) => f.fieldType === "repeat_table");
-    return hasRepeat
-      ? new Set(task.fields.filter((f) => f.fieldType === "photo").map((f) => f.id))
-      : new Set<string>();
+    if (!hasRepeat) return new Set<string>();
+    const ids = task.fields
+      .filter((f) => {
+        if (f.fieldType !== "photo") return false;
+        const hasTagged = (f.attachments ?? []).some((a) => {
+          const m = (a.metadata ?? {}) as Record<string, unknown>;
+          return typeof m._tcRowId === "string" && m._tcRowId !== "";
+        });
+        const label = (f.label ?? "").toLowerCase();
+        const section = (f.section ?? "").toLowerCase();
+        return (
+          hasTagged ||
+          label.includes("dokumentasi") ||
+          section.includes("dokumentasi") ||
+          section.includes("foto scenario") ||
+          /scen\d+_sec/i.test(f.label ?? "")
+        );
+      })
+      .map((f) => f.id);
+    return new Set(ids);
   }, [task.fields]);
   const docPhotoAttachments = useMemo(
     () =>
