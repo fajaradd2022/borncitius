@@ -773,8 +773,12 @@ export class PdfService {
             // Tiap sektor = satu lembar penuh sendiri.
             startFreshPage();
             const top = y;
-            // Foto mengisi ± setengah tinggi konten (seperti proporsi template).
-            const photoH = (topY - MARGIN_BOTTOM) * 0.5;
+            // Tinggi kotak foto diukur langsung dari contoh customer: seluruh
+            // unit (banner+title+header-kolom+foto) ≈ 51.5% tinggi konten
+            // halaman (diukur dari sample). photoH diturunkan dari situ agar
+            // ada ruang kosong wajar di bawah sebelum akhir halaman.
+            const UNIT_RATIO = 0.515;
+            const photoH = UNIT_RATIO * (topY - MARGIN_BOTTOM) - (scenH + titleH + colHdrH);
 
             // Banner 1: SPEEDTEST SCENARIO N (teal, teks putih)
             const scenTitle = unit.scenarioTitle ?? 'SPEEDTEST';
