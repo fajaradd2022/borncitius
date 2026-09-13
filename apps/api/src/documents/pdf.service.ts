@@ -7,11 +7,11 @@ import type { LayoutBlockType } from '@prisma/client';
 
 /** A4 dalam satuan poin PDF (72 dpi). */
 const A4 = { width: 595.28, height: 841.89 };
-// Margin halaman sesuai setting cetak: Top 2.54cm, Bottom 2.54cm,
-// Left 2.29cm, Right 2.21cm, Gutter 0cm (tidak berpengaruh), Portrait.
+// Margin halaman sesuai setting cetak (revisi terbaru): Top 2.54cm,
+// Bottom tetap 2.54cm, Left 1.3cm, Right 1.3cm, Gutter 0cm, Portrait.
 // 1 cm = 28.3464567 pt.
-const MARGIN = 64.91; // Left — 2.29cm (nama lama dipertahankan sbg margin kiri)
-const MARGIN_RIGHT = 62.65; // 2.21cm
+const MARGIN = 36.85; // Left — 1.3cm (nama lama dipertahankan sbg margin kiri)
+const MARGIN_RIGHT = 36.85; // 1.3cm
 const MARGIN_TOP = 72.0; // 2.54cm
 const MARGIN_BOTTOM = 72.0; // 2.54cm
 
