@@ -717,8 +717,9 @@ export class PdfService {
             y = blockTop - blockH;
             r += blockLen;
           }
-          // Jarak antar tabel dipersempit agar 2 tabel + Notes muat 1 halaman.
-          y -= 4;
+          // Jarak antar TEST INFORMATION dan TEST RESULTS: satu baris kosong
+          // (≈ 1 "enter") sesuai permintaan customer, bukan rapat menempel.
+          y -= 14;
 
           // Notes hanya di bawah TEST RESULTS. Teks PERSIS sesuai template
           // (perhatikan spasi/koma — jangan "dirapikan").
@@ -1018,9 +1019,13 @@ export class PdfService {
   async compose(blocks: RenderBlock[], ctx: RenderContext): Promise<Buffer> {
     const sorted = [...blocks].sort((a, b) => a.orderIndex - b.orderIndex);
 
-    // Header (bila ada) digambar di SETIAP halaman; cadangkan ruang atas.
+    // Header (bila ada) digambar di SETIAP halaman, TAPI tidak lagi
+    // mencadangkan ruang ekstra di luar margin atas: logo (≈48pt total)
+    // muat di dalam margin atas 2.54cm (72pt) itu sendiri. Ini membuat tabel
+    // benar-benar mulai tepat di margin 2.54cm pada SETIAP halaman, bukan
+    // digeser lebih jauh ke bawah oleh ruang header tambahan.
     const headerBlock = sorted.find((b) => b.type === 'header');
-    const HEADER_H = headerBlock ? 44 : 0; // tinggi area header per halaman
+    const HEADER_H = 0; // tinggi area header per halaman (logo fit dalam margin atas)
 
     // Bangun daftar unit sesuai urutan: segmen render + lampiran.
     type Unit =
