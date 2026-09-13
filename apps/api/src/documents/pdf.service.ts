@@ -16,11 +16,11 @@ const MARGIN_TOP = 72.0; // 2.54cm
 const MARGIN_BOTTOM = 72.0; // 2.54cm
 
 // Tabel-tabel (TEST INFORMATION/RESULTS, grid foto SPEEDTEST, JUSTIFICATION)
-// digeser lebih ke kiri/kanan drpd margin teks biasa agar isinya lebih
-// lebar/lega — sesuai permintaan customer ("tabel bisa lebih lebar geser
-// kanan kiri"). Header logo memakai margin ini juga agar lebih mepet ke pojok.
-const TABLE_MARGIN_L = 24;
-const TABLE_MARGIN_R = 24;
+// sekarang persis fit ke margin halaman (sama seperti margin teks/logo),
+// bukan margin sendiri yang lebih sempit — supaya semua konten sejajar rapi
+// dengan tepi halaman yang sama (permintaan customer: "tabel fit ke margin").
+const TABLE_MARGIN_L = MARGIN;
+const TABLE_MARGIN_R = MARGIN_RIGHT;
 
 export interface BorderStyle {
   outer?: boolean;
@@ -605,16 +605,17 @@ export class PdfService {
           };
 
           // Isi tabel (header kolom + data) memakai ukuran 8 sesuai permintaan
-          // customer. Tinggi baris/header diskalakan proporsional dari versi
-          // lama (fs 6.5→8, hs 6→8) agar tetap ada ruang yang cukup.
+          // customer. Baris dibuat kompak (rowH 12) dan jarak antar tabel
+          // dipersempit supaya TEST INFORMATION + TEST RESULTS + Notes muat
+          // dalam SATU halaman untuk 18 baris/skenario (mengikuti contoh customer).
           const hs = 8; // ukuran teks header kolom
           const fs = 8; // ukuran teks isi/data tabel
-          const rowH = 16;
+          const rowH = 12;
           // Header dua-tingkat bila ada kolom ber-group (mis. RSRP Indoor/Outdoor).
           const groups = cols.map((c) => (c as { group?: string }).group);
           const hasGroups = groups.some(Boolean);
-          const tier1H = 15; // baris super-header (RSRP)
-          const baseHdrH = isResult ? 30 : 22;
+          const tier1H = 12; // baris super-header (RSRP)
+          const baseHdrH = isResult ? 24 : 20;
           const headerH = baseHdrH + (hasGroups ? tier1H : 0);
 
           const drawHeader = () => {
@@ -716,8 +717,8 @@ export class PdfService {
             y = blockTop - blockH;
             r += blockLen;
           }
-          // Jarak antar tabel = 1 spasi (± satu baris).
-          y -= 13;
+          // Jarak antar tabel dipersempit agar 2 tabel + Notes muat 1 halaman.
+          y -= 4;
 
           // Notes hanya di bawah TEST RESULTS. Teks PERSIS sesuai template
           // (perhatikan spasi/koma — jangan "dirapikan").
