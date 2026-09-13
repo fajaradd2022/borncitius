@@ -857,12 +857,14 @@ export class PdfService {
           const hdrBg = rgb(0xc1 / 255, 0xe4 / 255, 0xf5 / 255);
 
           // Banner judul (teal, teks putih).
-          ensureSpace(titleH + hdrH + rowH);
+          const gapH = 14; // jarak 1 "enter" antara judul dan tabel (contoh customer)
+          ensureSpace(titleH + gapH + hdrH + rowH);
           page.drawRectangle({ x: tMargin, y: y - titleH, width: tWidth, height: titleH, color: titleBg, borderColor: bClr, borderWidth: 1 });
           const tTxt = 'JUSTIFICATION AND DT CHRONOLOGY';
           const tW = bold.widthOfTextAtSize(tTxt, titleSize);
           page.drawText(tTxt, { x: tMargin + (tWidth - tW) / 2, y: y - titleH + 6, size: titleSize, font: bold, color: rgb(1, 1, 1) });
           y -= titleH;
+          y -= gapH;
 
           // Header kolom (biru muda, teks hitam).
           let hx = tMargin;
