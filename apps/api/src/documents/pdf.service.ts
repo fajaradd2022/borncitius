@@ -773,11 +773,10 @@ export class PdfService {
             // Tiap sektor = satu lembar penuh sendiri.
             startFreshPage();
             const top = y;
-            // Tinggi kotak foto diukur langsung dari contoh customer: seluruh
-            // unit (banner+title+header-kolom+foto) ≈ 51.5% tinggi konten
-            // halaman (diukur dari sample). photoH diturunkan dari situ agar
-            // ada ruang kosong wajar di bawah sebelum akhir halaman.
-            const UNIT_RATIO = 0.515;
+            // Tinggi kotak foto diukur dari contoh customer, dikurangi sedikit
+            // lagi agar sesuai umpan balik (foto sedikit lebih pendek dari
+            // pengukuran awal 51.5%).
+            const UNIT_RATIO = 0.44;
             const photoH = UNIT_RATIO * (topY - MARGIN_BOTTOM) - (scenH + titleH + colHdrH);
 
             // Banner 1: SPEEDTEST SCENARIO N (teal, teks putih)
