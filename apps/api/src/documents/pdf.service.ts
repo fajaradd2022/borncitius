@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
+import fontkit from '@pdf-lib/fontkit';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { LayoutBlockType } from '@prisma/client';
@@ -13,6 +14,13 @@ const MARGIN = 64.91; // Left — 2.29cm (nama lama dipertahankan sbg margin kir
 const MARGIN_RIGHT = 62.65; // 2.21cm
 const MARGIN_TOP = 72.0; // 2.54cm
 const MARGIN_BOTTOM = 72.0; // 2.54cm
+
+// Tabel-tabel (TEST INFORMATION/RESULTS, grid foto SPEEDTEST, JUSTIFICATION)
+// digeser lebih ke kiri/kanan drpd margin teks biasa agar isinya lebih
+// lebar/lega — sesuai permintaan customer ("tabel bisa lebih lebar geser
+// kanan kiri"). Header logo memakai margin ini juga agar lebih mepet ke pojok.
+const TABLE_MARGIN_L = 24;
+const TABLE_MARGIN_R = 24;
 
 export interface BorderStyle {
   outer?: boolean;
@@ -87,6 +95,32 @@ export interface RenderContext {
 export class PdfService {
   private readonly logger = new Logger(PdfService.name);
 
+  /**
+   * Embed font Aptos Narrow (Regular + Bold) via fontkit. Tidak ada varian
+   * italic resmi untuk Aptos Narrow — fallback ke regular/bold untuk slot
+   * italic/boldItalic (dampak visual minor, dipakai jarang di dokumen ini).
+   * Bila berkas font tak ditemukan, fallback ke Helvetica standar pdf-lib.
+   */
+  private async embedAptosFonts(doc: PDFDocument): Promise<{ font: PDFFont; bold: PDFFont; italic: PDFFont; boldItalic: PDFFont }> {
+    try {
+      doc.registerFontkit(fontkit);
+      const [regularBytes, boldBytes] = await Promise.all([
+        readFile(join(process.cwd(), 'assets', 'fonts', 'Aptos-Narrow.ttf')),
+        readFile(join(process.cwd(), 'assets', 'fonts', 'Aptos-Narrow-Bold.ttf')),
+      ]);
+      const font = await doc.embedFont(regularBytes, { subset: true });
+      const bold = await doc.embedFont(boldBytes, { subset: true });
+      return { font, bold, italic: font, boldItalic: bold };
+    } catch (err) {
+      this.logger.warn(`Gagal memuat font Aptos Narrow, fallback ke Helvetica: ${String(err)}`);
+      const font = await doc.embedFont(StandardFonts.Helvetica);
+      const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const italic = await doc.embedFont(StandardFonts.HelveticaOblique);
+      const boldItalic = await doc.embedFont(StandardFonts.HelveticaBoldOblique);
+      return { font, bold, italic, boldItalic };
+    }
+  }
+
   async render(
     blocks: RenderBlock[],
     ctx: RenderContext,
@@ -96,10 +130,7 @@ export class PdfService {
     doc.setTitle(ctx.title);
     doc.setCreator('Born Citius');
 
-    const font = await doc.embedFont(StandardFonts.Helvetica);
-    const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-    const italic = await doc.embedFont(StandardFonts.HelveticaOblique);
-    const boldItalic = await doc.embedFont(StandardFonts.HelveticaBoldOblique);
+    const { font, bold, italic, boldItalic } = await this.embedAptosFonts(doc);
 
     // Ruang atas yang dicadangkan untuk header per-halaman (digambar di compose()).
     const headerReserve = opts.headerReserve ?? 0;
@@ -405,7 +436,7 @@ export class PdfService {
               }
 
               // Hitung tinggi kotak foto tiap slot dari sisa ruang untuk 2 unit.
-                const avail = y - MARGIN_BOTTOM;
+              const avail = y - MARGIN_BOTTOM;
               twoUpBoxH = Math.max(80, (avail - 2 * TWO_UP_CAP_H - TWO_UP_GAP) / 2);
 
               // Unit 1 (atas)
@@ -515,14 +546,21 @@ export class PdfService {
           const rules = td.remarkRules ?? [];
           const site = block.siteInfo ?? {};
 
+          // Tabel ini digeser ke margin sempit (TABLE_MARGIN_*) agar isinya
+          // lebih lebar/lega dibanding blok teks biasa (permintaan customer).
+          const tMargin = TABLE_MARGIN_L;
+          const tWidth = A4.width - TABLE_MARGIN_L - TABLE_MARGIN_R;
+
           // Judul tabel + site info (di atas tabel pertama saja bila diinginkan).
           const title = isResult ? 'TEST RESULTS' : 'TEST INFORMATION';
-          ensureSpace(40);
+          const titleSize = 16; // ukuran judul sesuai permintaan customer
+          const bannerH = titleSize + 9; // padding konsisten dgn formula versi lama
+          ensureSpace(bannerH + 20);
           // Banner judul — warna 0B769F (sesuai template OOXML).
-          page.drawRectangle({ x: MARGIN, y: y - 22, width: contentWidth, height: 22, color: hexToRgb('#0B769F') ?? rgb(0.04, 0.46, 0.62) });
-          const tw = bold.widthOfTextAtSize(title, 13);
-          page.drawText(title, { x: MARGIN + (contentWidth - tw) / 2, y: y - 16, size: 13, font: bold, color: rgb(1, 1, 1) });
-          y -= 22;
+          page.drawRectangle({ x: tMargin, y: y - bannerH, width: tWidth, height: bannerH, color: hexToRgb('#0B769F') ?? rgb(0.04, 0.46, 0.62) });
+          const tw = bold.widthOfTextAtSize(title, titleSize);
+          page.drawText(title, { x: tMargin + (tWidth - tw) / 2, y: y - bannerH + 6, size: titleSize, font: bold, color: rgb(1, 1, 1) });
+          y -= bannerH;
 
           // Definisi kolom per jenis tabel (lebar = twip dari template OOXML).
           const infoCols = [
@@ -553,7 +591,7 @@ export class PdfService {
           ];
           const cols = isResult ? resultCols : infoCols;
           const totalW = cols.reduce((s, c) => s + c.w, 0);
-          const colW = cols.map((c) => (c.w / totalW) * contentWidth);
+          const colW = cols.map((c) => (c.w / totalW) * tWidth);
           // Border sel hitam (bukan abu-abu), header C1E4F5 dgn teks hitam.
           const bClr = rgb(0, 0, 0);
           const hdrBg = hexToRgb('#C1E4F5') ?? rgb(0.76, 0.89, 0.96);
@@ -566,18 +604,23 @@ export class PdfService {
             return dl >= rule.minDl ? 'Pass' : 'Fail';
           };
 
-          const rowH = 13;
+          // Isi tabel (header kolom + data) memakai ukuran 8 sesuai permintaan
+          // customer. Tinggi baris/header diskalakan proporsional dari versi
+          // lama (fs 6.5→8, hs 6→8) agar tetap ada ruang yang cukup.
+          const hs = 8; // ukuran teks header kolom
+          const fs = 8; // ukuran teks isi/data tabel
+          const rowH = 16;
           // Header dua-tingkat bila ada kolom ber-group (mis. RSRP Indoor/Outdoor).
           const groups = cols.map((c) => (c as { group?: string }).group);
           const hasGroups = groups.some(Boolean);
-          const tier1H = 11; // baris super-header (RSRP)
-          const baseHdrH = isResult ? 22 : 16;
+          const tier1H = 15; // baris super-header (RSRP)
+          const baseHdrH = isResult ? 30 : 22;
           const headerH = baseHdrH + (hasGroups ? tier1H : 0);
 
           const drawHeader = () => {
             ensureSpace(headerH);
             const top = y;
-            let x = MARGIN;
+            let x = tMargin;
             cols.forEach((c, i) => {
               const grp = (c as { group?: string }).group;
               if (hasGroups && grp) {
@@ -585,14 +628,12 @@ export class PdfService {
                 // di sini gambar hanya sub-header di tier bawah.
                 page.drawRectangle({ x, y: top - headerH, width: colW[i], height: baseHdrH, color: hdrBg });
                 page.drawRectangle({ x, y: top - headerH, width: colW[i], height: baseHdrH, borderColor: bClr, borderWidth: 0.5 });
-                const hs = 6;
                 const w = bold.widthOfTextAtSize(c.header, hs);
                 page.drawText(c.header, { x: x + (colW[i] - w) / 2, y: top - headerH + baseHdrH / 2 - hs / 2 + 1, size: hs, font: bold, color: hdrText });
               } else {
                 // Kolom biasa mengisi seluruh tinggi header (tier1 + base).
                 page.drawRectangle({ x, y: top - headerH, width: colW[i], height: headerH, color: hdrBg });
                 page.drawRectangle({ x, y: top - headerH, width: colW[i], height: headerH, borderColor: bClr, borderWidth: 0.5 });
-                const hs = 6;
                 const lines = wrapText(c.header, bold, hs, colW[i] - 3);
                 const startY = top - headerH / 2 + (lines.length * (hs + 1)) / 2 - hs + 1;
                 lines.forEach((ln, li) => {
@@ -604,7 +645,7 @@ export class PdfService {
             });
             // Super-header spans untuk kolom ber-group (mis. "RSRP (dBm)").
             if (hasGroups) {
-              let gx = MARGIN;
+              let gx = tMargin;
               let i = 0;
               while (i < cols.length) {
                 const grp = (cols[i] as { group?: string }).group;
@@ -614,8 +655,8 @@ export class PdfService {
                   while (j < cols.length && (cols[j] as { group?: string }).group === grp) { spanW += colW[j]; j++; }
                   page.drawRectangle({ x: gx, y: top - tier1H, width: spanW, height: tier1H, color: hdrBg });
                   page.drawRectangle({ x: gx, y: top - tier1H, width: spanW, height: tier1H, borderColor: bClr, borderWidth: 0.5 });
-                  const w = bold.widthOfTextAtSize(grp, 6.5);
-                  page.drawText(grp, { x: gx + (spanW - w) / 2, y: top - tier1H / 2 - 2, size: 6.5, font: bold, color: hdrText });
+                  const w = bold.widthOfTextAtSize(grp, hs);
+                  page.drawText(grp, { x: gx + (spanW - w) / 2, y: top - tier1H / 2 - hs / 2 + 1, size: hs, font: bold, color: hdrText });
                   for (let k = i; k < j; k++) gx += colW[k];
                   i = j;
                 } else {
@@ -631,7 +672,6 @@ export class PdfService {
           // Baris data dengan vMerge SEBENARNYA pada kolom scenario/distance/target:
           // sel digambar sekali per blok skenario, teks di tengah vertikal blok.
           const mergeKeys = ['scenario', 'distance', 'target'];
-          const fs = 6.5;
           let r = 0;
           while (r < rows.length) {
             // Tentukan panjang blok skenario (baris berturut dgn scenario sama).
@@ -643,7 +683,7 @@ export class PdfService {
             const blockTop = y;
             const blockH = blockLen * rowH;
             // Gambar sel merge (satu sel tinggi) + teksnya di tengah vertikal.
-            let mx = MARGIN;
+            let mx = tMargin;
             cols.forEach((c, i) => {
               if (mergeKeys.includes(c.key)) {
                 page.drawRectangle({ x: mx, y: blockTop - blockH, width: colW[i], height: blockH, borderColor: bClr, borderWidth: 0.5 });
@@ -657,7 +697,7 @@ export class PdfService {
               const row = rows[r + br];
               const top = blockTop - br * rowH;
               const rowRemark = isResult ? computeRemark(row) : '';
-              let x = MARGIN;
+              let x = tMargin;
               cols.forEach((c, i) => {
                 if (mergeKeys.includes(c.key)) { x += colW[i]; return; }
                 page.drawRectangle({ x, y: top - rowH, width: colW[i], height: rowH, borderColor: bClr, borderWidth: 0.5 });
@@ -693,7 +733,7 @@ export class PdfService {
             ];
             ensureSpace(notesLines.length * 11 + 6);
             notesLines.forEach((ln, i) => {
-              page.drawText(ln, { x: MARGIN, y: y - 9 - i * 11, size: i === 0 ? 8 : 7.5, font: i === 0 ? bold : font, color: rgb(0, 0, 0) });
+              page.drawText(ln, { x: tMargin, y: y - 9 - i * 11, size: i === 0 ? 8 : 7.5, font: i === 0 ? bold : font, color: rgb(0, 0, 0) });
             });
             y -= notesLines.length * 11 + 6;
           }
@@ -715,7 +755,18 @@ export class PdfService {
           const siteTag = (block.siteInfo?.siteId && block.siteInfo?.siteName)
             ? `${block.siteInfo.siteId}_${block.siteInfo.siteName}`
             : (block.siteInfo?.siteId ?? '');
-          const scenH = 22, titleH = 16, colHdrH = 16;
+
+          // Tabel/grid digeser ke margin sempit agar lebih lebar (sama seperti
+          // TEST INFORMATION/RESULTS). Ukuran font: banner "SPEEDTEST SCENARIO
+          // N" = 20, sisanya (banner sector/site + header 3 kolom) = 12.
+          const tMargin = TABLE_MARGIN_L;
+          const tWidth = A4.width - TABLE_MARGIN_L - TABLE_MARGIN_R;
+          const scenSize = 20;
+          const innerSize = 12;
+          const scenH = scenSize + 10; // 30
+          const titleH = innerSize + 6; // 18
+          const colHdrH = innerSize + 6; // 18
+
           for (const unit of units) {
             // Tiap sektor = satu lembar penuh sendiri.
             startFreshPage();
@@ -725,31 +776,31 @@ export class PdfService {
 
             // Banner 1: SPEEDTEST SCENARIO N (teal, teks putih)
             const scenTitle = unit.scenarioTitle ?? 'SPEEDTEST';
-            page.drawRectangle({ x: MARGIN, y: top - scenH, width: contentWidth, height: scenH, color: scenBg, borderColor: bClr, borderWidth: bW });
-            const stw = bold.widthOfTextAtSize(scenTitle, 12);
-            page.drawText(scenTitle, { x: MARGIN + (contentWidth - stw) / 2, y: top - 16, size: 12, font: bold, color: rgb(1, 1, 1) });
+            page.drawRectangle({ x: tMargin, y: top - scenH, width: tWidth, height: scenH, color: scenBg, borderColor: bClr, borderWidth: bW });
+            const stw = bold.widthOfTextAtSize(scenTitle, scenSize);
+            page.drawText(scenTitle, { x: tMargin + (tWidth - stw) / 2, y: top - scenH + 6, size: scenSize, font: bold, color: rgb(1, 1, 1) });
 
             // Banner 2: sector + site (biru muda, teks hitam)
             const titY = top - scenH;
-            page.drawRectangle({ x: MARGIN, y: titY - titleH, width: contentWidth, height: titleH, color: gridHdrBg, borderColor: bClr, borderWidth: bW });
+            page.drawRectangle({ x: tMargin, y: titY - titleH, width: tWidth, height: titleH, color: gridHdrBg, borderColor: bClr, borderWidth: bW });
             const unitSiteTag = unit.siteTag ?? siteTag;
             const fullTitle = unitSiteTag ? `${unit.title} ${unitSiteTag}` : unit.title;
-            const tw2 = bold.widthOfTextAtSize(fullTitle, 10);
-            page.drawText(fullTitle, { x: MARGIN + (contentWidth - tw2) / 2, y: titY - 11, size: 10, font: bold, color: rgb(0, 0, 0) });
+            const tw2 = bold.widthOfTextAtSize(fullTitle, innerSize);
+            page.drawText(fullTitle, { x: tMargin + (tWidth - tw2) / 2, y: titY - titleH + 5, size: innerSize, font: bold, color: rgb(0, 0, 0) });
 
             // Header 3 kolom (biru muda, teks hitam)
-            const cw = contentWidth / 3;
+            const cw = tWidth / 3;
             const hdrY = titY - titleH;
             colHeaders.forEach((h, i) => {
-              page.drawRectangle({ x: MARGIN + i * cw, y: hdrY - colHdrH, width: cw, height: colHdrH, color: gridHdrBg, borderColor: bClr, borderWidth: bW });
-              const w = bold.widthOfTextAtSize(h, 9);
-              page.drawText(h, { x: MARGIN + i * cw + (cw - w) / 2, y: hdrY - 11, size: 9, font: bold, color: rgb(0, 0, 0) });
+              page.drawRectangle({ x: tMargin + i * cw, y: hdrY - colHdrH, width: cw, height: colHdrH, color: gridHdrBg, borderColor: bClr, borderWidth: bW });
+              const w = bold.widthOfTextAtSize(h, innerSize);
+              page.drawText(h, { x: tMargin + i * cw + (cw - w) / 2, y: hdrY - colHdrH + 5, size: innerSize, font: bold, color: rgb(0, 0, 0) });
             });
 
             // 3 kotak foto
             const photoY = hdrY - colHdrH;
             for (let i = 0; i < 3; i++) {
-              const cellX = MARGIN + i * cw;
+              const cellX = tMargin + i * cw;
               page.drawRectangle({ x: cellX, y: photoY - photoH, width: cw, height: photoH, borderColor: bClr, borderWidth: bW });
               const ph = unit.photos[i];
               if (ph) {
@@ -778,12 +829,21 @@ export class PdfService {
           // halaman baru agar tabel utuh.
           const jrows = block.justRows ?? [];
           startFreshPage();
-          const titleH = 20;
-          const hdrH = 16;
+
+          // Tabel digeser ke margin sempit agar lebih lebar. Ukuran font:
+          // judul "JUSTIFICATION AND DT CHRONOLOGY" = 20, header kolom
+          // (Date/Time/Chronology/Evidence) = 12, isi tabel = 10.
+          const tMargin = TABLE_MARGIN_L;
+          const tWidth = A4.width - TABLE_MARGIN_L - TABLE_MARGIN_R;
+          const titleSize = 20;
+          const hdrSize = 12;
+          const bodySize = 10;
+          const titleH = titleSize + 9; // 29
+          const hdrH = hdrSize + 8; // 20
           const rowH = 90; // tinggi baris cukup untuk foto evidence
           // Lebar kolom (proporsional contoh): Date, Time, Chronology, Evidance.
           const wDate = 70, wTime = 60, wEvid = 150;
-          const wChron = contentWidth - wDate - wTime - wEvid;
+          const wChron = tWidth - wDate - wTime - wEvid;
           const cols = [
             { key: 'date', header: 'Date', w: wDate },
             { key: 'time', header: 'Time', w: wTime },
@@ -796,18 +856,18 @@ export class PdfService {
 
           // Banner judul (teal, teks putih).
           ensureSpace(titleH + hdrH + rowH);
-          page.drawRectangle({ x: MARGIN, y: y - titleH, width: contentWidth, height: titleH, color: titleBg, borderColor: bClr, borderWidth: 1 });
+          page.drawRectangle({ x: tMargin, y: y - titleH, width: tWidth, height: titleH, color: titleBg, borderColor: bClr, borderWidth: 1 });
           const tTxt = 'JUSTIFICATION AND DT CHRONOLOGY';
-          const tW = bold.widthOfTextAtSize(tTxt, 11);
-          page.drawText(tTxt, { x: MARGIN + (contentWidth - tW) / 2, y: y - 14, size: 11, font: bold, color: rgb(1, 1, 1) });
+          const tW = bold.widthOfTextAtSize(tTxt, titleSize);
+          page.drawText(tTxt, { x: tMargin + (tWidth - tW) / 2, y: y - titleH + 6, size: titleSize, font: bold, color: rgb(1, 1, 1) });
           y -= titleH;
 
           // Header kolom (biru muda, teks hitam).
-          let hx = MARGIN;
+          let hx = tMargin;
           for (const c of cols) {
             page.drawRectangle({ x: hx, y: y - hdrH, width: c.w, height: hdrH, color: hdrBg, borderColor: bClr, borderWidth: 1 });
-            const w = bold.widthOfTextAtSize(c.header, 8);
-            page.drawText(c.header, { x: hx + (c.w - w) / 2, y: y - 11, size: 8, font: bold, color: rgb(0, 0, 0) });
+            const w = bold.widthOfTextAtSize(c.header, hdrSize);
+            page.drawText(c.header, { x: hx + (c.w - w) / 2, y: y - hdrH + 5, size: hdrSize, font: bold, color: rgb(0, 0, 0) });
             hx += c.w;
           }
           y -= hdrH;
@@ -822,19 +882,19 @@ export class PdfService {
             // Susun foto vertikal di kolom Evidance; tiap foto ± 84pt tinggi.
             const perPhotoH = 84;
             const dynRowH = Math.max(rowH, nEv * perPhotoH + 6);
-      if (y - dynRowH < MARGIN_BOTTOM + 20) {
+            if (y - dynRowH < MARGIN_BOTTOM + 20) {
               startFreshPage();
               // Ulang header kolom di halaman baru.
-              let hx2 = MARGIN;
+              let hx2 = tMargin;
               for (const c of cols) {
                 page.drawRectangle({ x: hx2, y: y - hdrH, width: c.w, height: hdrH, color: hdrBg, borderColor: bClr, borderWidth: 1 });
-                const w = bold.widthOfTextAtSize(c.header, 8);
-                page.drawText(c.header, { x: hx2 + (c.w - w) / 2, y: y - 11, size: 8, font: bold, color: rgb(0, 0, 0) });
+                const w = bold.widthOfTextAtSize(c.header, hdrSize);
+                page.drawText(c.header, { x: hx2 + (c.w - w) / 2, y: y - hdrH + 5, size: hdrSize, font: bold, color: rgb(0, 0, 0) });
                 hx2 += c.w;
               }
               y -= hdrH;
             }
-            let cx = MARGIN;
+            let cx = tMargin;
             const rowTop = y;
             for (const c of cols) {
               page.drawRectangle({ x: cx, y: rowTop - dynRowH, width: c.w, height: dynRowH, borderColor: bClr, borderWidth: 1 });
@@ -860,13 +920,13 @@ export class PdfService {
               } else {
                 const raw = String((jr as Record<string, unknown>)[c.key] ?? '');
                 const align = c.key === 'chronology' ? 'left' : 'center';
-                const lines = wrapText(raw, font, 8, c.w - 8);
-                let ty = rowTop - 12;
-                for (const ln of lines.slice(0, Math.floor((dynRowH - 8) / 10))) {
-                  const lw = font.widthOfTextAtSize(ln, 8);
+                const lines = wrapText(raw, font, bodySize, c.w - 8);
+                let ty = rowTop - 14;
+                for (const ln of lines.slice(0, Math.floor((dynRowH - 8) / 12))) {
+                  const lw = font.widthOfTextAtSize(ln, bodySize);
                   const tx = align === 'center' ? cx + (c.w - lw) / 2 : cx + 4;
-                  page.drawText(ln, { x: tx, y: ty, size: 8, font, color: rgb(0, 0, 0) });
-                  ty -= 10;
+                  page.drawText(ln, { x: tx, y: ty, size: bodySize, font, color: rgb(0, 0, 0) });
+                  ty -= 12;
                 }
               }
               cx += c.w;
@@ -1014,7 +1074,7 @@ export class PdfService {
     const footerBlock = blocks.find((b) => b.type === 'footer');
     const footerCfg = (footerBlock?.config ?? {}) as Record<string, unknown>;
     if (footerBlock && footerCfg.showPageNumber) {
-      const font = await out.embedFont(StandardFonts.Helvetica);
+      const { font } = await this.embedAptosFonts(out);
       const pages = out.getPages();
       const total = pages.length;
       pages.forEach((p, i) => {
@@ -1035,8 +1095,10 @@ export class PdfService {
 
   /**
    * Menggambar header (logo Nokia kiri + Surge kanan) di SETIAP halaman dokumen.
-   * Nokia dibuat sedikit lebih besar & proporsional terhadap Surge (tinggi
-   * berbeda agar bobot visual seimbang). Fallback teks bila aset tak ada.
+   * Logo digeser mepet ke pojok kiri/kanan atas (margin sempit TABLE_MARGIN_*,
+   * bukan margin teks biasa) sesuai contoh template customer. Nokia dibuat
+   * sedikit lebih besar & proporsional terhadap Surge. Fallback teks bila aset
+   * tak ada.
    */
   private async drawHeaderAllPages(out: PDFDocument): Promise<void> {
     const loadLogo = async (file: string) => {
@@ -1054,23 +1116,23 @@ export class PdfService {
     // Nokia ± 0.618" (≈44 pt), Surge ± 0.5" (≈36 pt). Nokia lebih besar.
     const NOKIA_H = 38;
     const SURGE_H = 30;
-    const topPad = 18; // jarak dari tepi atas ke logo
-    const bold = !nokiaImg || !surgeImg ? await out.embedFont(StandardFonts.HelveticaBold) : null;
+    const topPad = 10; // jarak dari tepi atas ke logo — dibuat mepet ke pojok
+    const bold = !nokiaImg || !surgeImg ? (await this.embedAptosFonts(out)).bold : null;
 
     for (const p of out.getPages()) {
       const pageTop = A4.height - topPad;
       if (nokiaImg) {
         const w = (nokiaImg.width / nokiaImg.height) * NOKIA_H;
-        p.drawImage(nokiaImg, { x: MARGIN, y: pageTop - NOKIA_H, width: w, height: NOKIA_H });
+        p.drawImage(nokiaImg, { x: TABLE_MARGIN_L, y: pageTop - NOKIA_H, width: w, height: NOKIA_H });
       } else if (bold) {
-        p.drawText('NOKIA', { x: MARGIN, y: pageTop - 16, size: 16, font: bold, color: rgb(0.07, 0.29, 0.65) });
+        p.drawText('NOKIA', { x: TABLE_MARGIN_L, y: pageTop - 16, size: 16, font: bold, color: rgb(0.07, 0.29, 0.65) });
       }
       if (surgeImg) {
         const w = (surgeImg.width / surgeImg.height) * SURGE_H;
-        p.drawImage(surgeImg, { x: A4.width - MARGIN_RIGHT - w, y: pageTop - SURGE_H, width: w, height: SURGE_H });
+        p.drawImage(surgeImg, { x: A4.width - TABLE_MARGIN_R - w, y: pageTop - SURGE_H, width: w, height: SURGE_H });
       } else if (bold) {
         const rw = bold.widthOfTextAtSize('Surge', 16);
-        p.drawText('Surge', { x: A4.width - MARGIN_RIGHT - rw, y: pageTop - 16, size: 16, font: bold, color: rgb(0.12, 0.2, 0.5) });
+        p.drawText('Surge', { x: A4.width - TABLE_MARGIN_R - rw, y: pageTop - 16, size: 16, font: bold, color: rgb(0.12, 0.2, 0.5) });
       }
     }
   }
@@ -1186,4 +1248,3 @@ function formatLatLon(raw: string, kind: 'lat' | 'lon'): string {
   const hemi = kind === 'lat' ? (num < 0 ? 'S' : 'N') : (num < 0 ? 'W' : 'E');
   return `${Math.abs(num).toFixed(6)}${hemi}`;
 }
-
