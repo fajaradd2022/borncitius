@@ -59,14 +59,27 @@ class ResetPasswordDto {
   password!: string;
 }
 
-/** Kelola user hanya untuk Admin (PRD Bagian 3). */
+/** Kelola user — mayoritas endpoint Admin-only (PRD Bagian 3). */
 @Controller('users')
 @Roles('admin')
 class UsersController {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Admin melihat semua user (untuk User Management).
+   * SPV (reviewer) hanya melihat daftar teknisi aktif — cukup untuk meng-assign
+   * task ke teknisi tanpa membocorkan data akun admin/spv lain.
+   */
   @Get()
-  findAll() {
+  @Roles('admin', 'spv')
+  findAll(@CurrentUser() user: AuthUser) {
+    if (user.role === 'spv') {
+      return this.prisma.user.findMany({
+        where: { role: 'teknisi', isActive: true },
+        select: PUBLIC_FIELDS,
+        orderBy: { name: 'asc' },
+      });
+    }
     return this.prisma.user.findMany({ select: PUBLIC_FIELDS, orderBy: { createdAt: 'asc' } });
   }
 
