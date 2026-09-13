@@ -6,7 +6,13 @@ import type { LayoutBlockType } from '@prisma/client';
 
 /** A4 dalam satuan poin PDF (72 dpi). */
 const A4 = { width: 595.28, height: 841.89 };
-const MARGIN = 56.7; // 20mm
+// Margin halaman sesuai setting cetak: Top 2.54cm, Bottom 2.54cm,
+// Left 2.29cm, Right 2.21cm, Gutter 0cm (tidak berpengaruh), Portrait.
+// 1 cm = 28.3464567 pt.
+const MARGIN = 64.91; // Left — 2.29cm (nama lama dipertahankan sbg margin kiri)
+const MARGIN_RIGHT = 62.65; // 2.21cm
+const MARGIN_TOP = 72.0; // 2.54cm
+const MARGIN_BOTTOM = 72.0; // 2.54cm
 
 export interface BorderStyle {
   outer?: boolean;
@@ -97,14 +103,14 @@ export class PdfService {
 
     // Ruang atas yang dicadangkan untuk header per-halaman (digambar di compose()).
     const headerReserve = opts.headerReserve ?? 0;
-    const topY = A4.height - MARGIN - headerReserve;
+    const topY = A4.height - MARGIN_TOP - headerReserve;
 
     let page = doc.addPage([A4.width, A4.height]);
     let y = topY;
-    const contentWidth = A4.width - MARGIN * 2;
+    const contentWidth = A4.width - MARGIN - MARGIN_RIGHT;
 
     const ensureSpace = (needed: number): void => {
-      if (y - needed < MARGIN) {
+      if (y - needed < MARGIN_BOTTOM) {
         page = doc.addPage([A4.width, A4.height]);
         y = topY;
       }
@@ -145,7 +151,7 @@ export class PdfService {
           if (opts.align === 'center') {
             x = MARGIN + (contentWidth - f.widthOfTextAtSize(line, size)) / 2;
           } else if (opts.align === 'right') {
-            x = A4.width - MARGIN - f.widthOfTextAtSize(line, size);
+            x = A4.width - MARGIN_RIGHT - f.widthOfTextAtSize(line, size);
           }
           page.drawText(line, { x, y: y - size, size, font: f, color });
           y -= size + gap;
@@ -213,7 +219,7 @@ export class PdfService {
                 ensureSpace(h + 8);
                 let x = MARGIN;
                 if (ts?.align === 'center') x = MARGIN + (contentWidth - w) / 2;
-                else if (ts?.align === 'right') x = A4.width - MARGIN - w;
+                else if (ts?.align === 'right') x = A4.width - MARGIN_RIGHT - w;
                 page.drawImage(embedded, { x, y: y - h, width: w, height: h });
                 y -= h + 8;
               }
@@ -233,7 +239,7 @@ export class PdfService {
             ensureSpace(20);
             page.drawText(block.label, { x: MARGIN, y: y - 10, size: 10, font, color: rgb(0.35, 0.35, 0.35) });
             const w = font.widthOfTextAtSize(value, 10);
-            page.drawText(value, { x: A4.width - MARGIN - w, y: y - 10, size: 10, font: bold });
+            page.drawText(value, { x: A4.width - MARGIN_RIGHT - w, y: y - 10, size: 10, font: bold });
             y -= 22;
           } else if (block.displayStyle === 'inline') {
             ensureSpace(16);
@@ -399,7 +405,7 @@ export class PdfService {
               }
 
               // Hitung tinggi kotak foto tiap slot dari sisa ruang untuk 2 unit.
-              const avail = y - MARGIN;
+                const avail = y - MARGIN_BOTTOM;
               twoUpBoxH = Math.max(80, (avail - 2 * TWO_UP_CAP_H - TWO_UP_GAP) / 2);
 
               // Unit 1 (atas)
@@ -478,7 +484,7 @@ export class PdfService {
               const embedded = await this.embedImage(doc, photo);
               if (embedded) {
                 const maxW = contentWidth;
-                const maxH = y - MARGIN - 40;
+                const maxH = y - MARGIN_BOTTOM - 40;
                 const scale = Math.min(maxW / embedded.width, maxH / embedded.height);
                 const w = embedded.width * scale;
                 const h = embedded.height * scale;
@@ -633,7 +639,7 @@ export class PdfService {
             let blockLen = 1;
             while (r + blockLen < rows.length && String(rows[r + blockLen].scenario ?? '') === scen) blockLen++;
             // Bila blok tak muat di sisa halaman, pindah halaman + ulang header.
-            if (y - blockLen * rowH < MARGIN) { startFreshPage(); drawHeader(); }
+            if (y - blockLen * rowH < MARGIN_BOTTOM) { startFreshPage(); drawHeader(); }
             const blockTop = y;
             const blockH = blockLen * rowH;
             // Gambar sel merge (satu sel tinggi) + teksnya di tengah vertikal.
@@ -715,7 +721,7 @@ export class PdfService {
             startFreshPage();
             const top = y;
             // Foto mengisi ± setengah tinggi konten (seperti proporsi template).
-            const photoH = (topY - MARGIN) * 0.5;
+            const photoH = (topY - MARGIN_BOTTOM) * 0.5;
 
             // Banner 1: SPEEDTEST SCENARIO N (teal, teks putih)
             const scenTitle = unit.scenarioTitle ?? 'SPEEDTEST';
@@ -816,7 +822,7 @@ export class PdfService {
             // Susun foto vertikal di kolom Evidance; tiap foto ± 84pt tinggi.
             const perPhotoH = 84;
             const dynRowH = Math.max(rowH, nEv * perPhotoH + 6);
-            if (y - dynRowH < MARGIN + 20) {
+      if (y - dynRowH < MARGIN_BOTTOM + 20) {
               startFreshPage();
               // Ulang header kolom di halaman baru.
               let hx2 = MARGIN;
@@ -881,7 +887,7 @@ export class PdfService {
           const cfg = block.config ?? {};
           ensureSpace(24);
           page.drawLine({
-            start: { x: MARGIN, y }, end: { x: A4.width - MARGIN, y },
+            start: { x: MARGIN, y }, end: { x: A4.width - MARGIN_RIGHT, y },
             thickness: 0.5, color: rgb(0.8, 0.8, 0.8),
           });
           y -= 12;
@@ -915,8 +921,8 @@ export class PdfService {
         const label = `${i + 1} / ${total}`;
         const w = font.widthOfTextAtSize(label, 8);
         p.drawText(label, {
-          x: A4.width - MARGIN - w,
-          y: MARGIN - 14,
+          x: A4.width - MARGIN_RIGHT - w,
+          y: MARGIN_BOTTOM - 14,
           size: 8,
           font,
           color: rgb(0.45, 0.45, 0.45),
@@ -1015,8 +1021,8 @@ export class PdfService {
         const label = `${i + 1} / ${total}`;
         const w = font.widthOfTextAtSize(label, 8);
         p.drawText(label, {
-          x: A4.width - MARGIN - w,
-          y: MARGIN - 14,
+          x: A4.width - MARGIN_RIGHT - w,
+          y: MARGIN_BOTTOM - 14,
           size: 8,
           font,
           color: rgb(0.45, 0.45, 0.45),
@@ -1061,10 +1067,10 @@ export class PdfService {
       }
       if (surgeImg) {
         const w = (surgeImg.width / surgeImg.height) * SURGE_H;
-        p.drawImage(surgeImg, { x: A4.width - MARGIN - w, y: pageTop - SURGE_H, width: w, height: SURGE_H });
+        p.drawImage(surgeImg, { x: A4.width - MARGIN_RIGHT - w, y: pageTop - SURGE_H, width: w, height: SURGE_H });
       } else if (bold) {
         const rw = bold.widthOfTextAtSize('Surge', 16);
-        p.drawText('Surge', { x: A4.width - MARGIN - rw, y: pageTop - 16, size: 16, font: bold, color: rgb(0.12, 0.2, 0.5) });
+        p.drawText('Surge', { x: A4.width - MARGIN_RIGHT - rw, y: pageTop - 16, size: 16, font: bold, color: rgb(0.12, 0.2, 0.5) });
       }
     }
   }
