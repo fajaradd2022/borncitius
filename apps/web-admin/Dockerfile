@@ -5,7 +5,7 @@ WORKDIR /app
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY apps/web-admin/package.json apps/web-admin/
-RUN pnpm install --filter web-admin... --frozen-lockfile
+RUN pnpm config set fetch-timeout 300000 && pnpm config set fetch-retries 5 && pnpm install --filter web-admin... --frozen-lockfile
 
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules

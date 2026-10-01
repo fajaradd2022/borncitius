@@ -6,7 +6,7 @@ WORKDIR /app
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY apps/api/package.json apps/api/
-RUN pnpm install --filter api... --frozen-lockfile
+RUN pnpm config set fetch-timeout 300000 && pnpm config set fetch-retries 5 && pnpm install --filter api... --frozen-lockfile
 
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
