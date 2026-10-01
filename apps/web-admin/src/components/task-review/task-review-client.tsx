@@ -39,6 +39,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AttachmentLightbox, type LightboxItem } from "@/components/ui/attachment-lightbox";
+import { PhotoDropZone } from "@/components/ui/photo-drop-zone";
 import { cn } from "@/lib/utils";
 import type { FieldType, ReviewStatus, TaskStatus } from "@/lib/types";
 
@@ -678,11 +679,12 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
                         />
                       ) : isEditing ? (
                         hasAttachments ? (
+                          <PhotoDropZone onDropFile={(f) => void handleUploadAttachment(field, f)}>
                           <div className="flex flex-col gap-2 rounded-md border border-dashed p-3">
                             <p className="text-xs text-muted-foreground">
                               {field.fieldType === "photo"
-                                ? "Ambil foto dari kamera atau unggah dari galeri untuk mengganti/menambah."
-                                : "Unggah berkas untuk mengganti/menambah lampiran."}
+                                ? "Ambil foto dari kamera atau unggah dari galeri untuk mengganti/menambah — atau seret foto ke sini."
+                                : "Unggah berkas untuk mengganti/menambah lampiran — atau seret berkas ke sini."}
                             </p>
                             <div className="flex flex-wrap items-center gap-2">
                               {field.fieldType === "photo" && (
@@ -750,6 +752,7 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
                               </Button>
                             </div>
                           </div>
+                          </PhotoDropZone>
                         ) : (
                           <div className="flex items-center gap-2">
                             <Input
@@ -1318,13 +1321,15 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable
                               </div>
                             ))}
                             {editable && (
-                              <button
-                                type="button"
-                                onClick={() => { pendingPhoto.current = { rowId: rid, slot, multi: true }; photoInputRef.current?.click(); }}
-                                className="flex h-9 items-center justify-center gap-1 rounded border border-dashed text-[10px] text-muted-foreground hover:bg-muted"
-                              >
-                                <Upload className="size-3.5" /> Add
-                              </button>
+                              <PhotoDropZone onDropFile={(f) => onUploadPhoto?.(rid, slot, f, true)}>
+                                <button
+                                  type="button"
+                                  onClick={() => { pendingPhoto.current = { rowId: rid, slot, multi: true }; photoInputRef.current?.click(); }}
+                                  className="flex h-9 w-full items-center justify-center gap-1 rounded border border-dashed text-[10px] text-muted-foreground hover:bg-muted"
+                                >
+                                  <Upload className="size-3.5" /> Add
+                                </button>
+                              </PhotoDropZone>
                             )}
                             {gitems.length === 0 && !editable && (
                               <div className="flex h-20 items-center justify-center rounded border border-dashed text-[10px] text-muted-foreground">—</div>
@@ -1342,48 +1347,55 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable
                       <div key={ps.key} className="flex flex-col gap-1">
                         <span className="text-[9px] font-semibold uppercase text-muted-foreground">{ps.label}</span>
                         {att ? (
-                          <div className="relative">
+                          <PhotoDropZone
+                            onDropFile={(f) => onUploadPhoto?.(rid, slot, f)}
+                            disabled={!editable}
+                          >
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const idx = sectorItems.findIndex((it) => it.id === att.id);
+                                  onOpenPhoto?.(sectorItems, idx < 0 ? 0 : idx);
+                                }}
+                                className="block w-full"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={`/api/proxy/tasks/attachments/${att.id}/file`} alt={ps.label} className="h-28 w-full cursor-zoom-in rounded border object-cover transition hover:opacity-90" />
+                              </button>
+                              {editable && (
+                                <div className="absolute right-1 top-1 flex gap-1">
+                                  <button
+                                    type="button"
+                                    aria-label="Ganti foto"
+                                    onClick={() => { pendingPhoto.current = { rowId: rid, slot }; photoInputRef.current?.click(); }}
+                                    className="flex size-5 items-center justify-center rounded-full bg-primary text-white shadow"
+                                  >
+                                    <Upload className="size-3" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label="Hapus foto"
+                                    onClick={() => onDeletePhoto?.(att.id)}
+                                    className="flex size-5 items-center justify-center rounded-full bg-destructive text-white shadow"
+                                  >
+                                    <X className="size-3" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </PhotoDropZone>
+                        ) : editable ? (
+                          <PhotoDropZone onDropFile={(f) => onUploadPhoto?.(rid, slot, f)}>
                             <button
                               type="button"
-                              onClick={() => {
-                                const idx = sectorItems.findIndex((it) => it.id === att.id);
-                                onOpenPhoto?.(sectorItems, idx < 0 ? 0 : idx);
-                              }}
-                              className="block w-full"
+                              onClick={() => { pendingPhoto.current = { rowId: rid, slot }; photoInputRef.current?.click(); }}
+                              className="flex h-28 w-full flex-col items-center justify-center gap-1 rounded border border-dashed text-[10px] text-muted-foreground hover:bg-muted"
                             >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={`/api/proxy/tasks/attachments/${att.id}/file`} alt={ps.label} className="h-28 w-full cursor-zoom-in rounded border object-cover transition hover:opacity-90" />
+                              <Upload className="size-4" />
+                              Tambah
                             </button>
-                            {editable && (
-                              <div className="absolute right-1 top-1 flex gap-1">
-                                <button
-                                  type="button"
-                                  aria-label="Ganti foto"
-                                  onClick={() => { pendingPhoto.current = { rowId: rid, slot }; photoInputRef.current?.click(); }}
-                                  className="flex size-5 items-center justify-center rounded-full bg-primary text-white shadow"
-                                >
-                                  <Upload className="size-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  aria-label="Hapus foto"
-                                  onClick={() => onDeletePhoto?.(att.id)}
-                                  className="flex size-5 items-center justify-center rounded-full bg-destructive text-white shadow"
-                                >
-                                  <X className="size-3" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        ) : editable ? (
-                          <button
-                            type="button"
-                            onClick={() => { pendingPhoto.current = { rowId: rid, slot }; photoInputRef.current?.click(); }}
-                            className="flex h-28 flex-col items-center justify-center gap-1 rounded border border-dashed text-[10px] text-muted-foreground hover:bg-muted"
-                          >
-                            <Upload className="size-4" />
-                            Tambah
-                          </button>
+                          </PhotoDropZone>
                         ) : (
                           <div className="flex h-28 items-center justify-center rounded border border-dashed text-[10px] text-muted-foreground">—</div>
                         )}

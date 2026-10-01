@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { Plus, Trash2, Filter, Camera, Upload, Loader2, X, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { AttachmentLightbox, type LightboxItem } from "./ui/attachment-lightbox";
+import { PhotoDropZone } from "./ui/photo-drop-zone";
 
 export interface TableColumn {
   key: string;
@@ -192,9 +193,13 @@ export function RepeatTableField({
     const p = pending.current;
     pending.current = null;
     if (!p) return;
-    setBusy(`${p.rowId}:${p.slot}`);
+    await uploadToSlot(p.rowId, p.slot, file);
+  }
+
+  async function uploadToSlot(rowId: string, slot: number, file: File) {
+    setBusy(`${rowId}:${slot}`);
     try {
-      await onUploadPhoto(p.rowId, p.slot, file);
+      await onUploadPhoto(rowId, slot, file);
     } catch {
       toast.error("Gagal mengunggah foto.");
     } finally {
@@ -340,14 +345,14 @@ export function RepeatTableField({
                                         <Loader2 className="size-4 animate-spin text-zinc-400" />
                                       </div>
                                     ) : (
-                                      <>
+                                      <PhotoDropZone className="flex flex-1 gap-1" onDropFile={(f) => void uploadToSlot(rowId, slot, f)}>
                                         <button type="button" onClick={() => triggerUpload(rowId, slot, true)} aria-label="Ambil foto G-EARTH" className="flex h-9 flex-1 items-center justify-center gap-1 rounded-md bg-primary text-[10px] font-medium text-white">
                                           <Camera className="size-3.5" /> Ambil
                                         </button>
                                         <button type="button" onClick={() => triggerUpload(rowId, slot, false)} aria-label="Tambah foto G-EARTH" className="flex h-9 flex-1 items-center justify-center gap-1 rounded-md border text-[10px] font-medium">
                                           <Plus className="size-3.5" /> Add
                                         </button>
-                                      </>
+                                      </PhotoDropZone>
                                     )}
                                   </div>
                                 )}
@@ -363,6 +368,7 @@ export function RepeatTableField({
                           <div key={ps.key} className="flex flex-col gap-1">
                             <span className="text-[9px] font-semibold uppercase tracking-wide text-zinc-400">{ps.label}</span>
                             {att ? (
+                              <PhotoDropZone disabled={locked} onDropFile={(f) => void uploadToSlot(rowId, slot, f)}>
                               <div className="relative">
                                 <button
                                   type="button"
@@ -389,23 +395,29 @@ export function RepeatTableField({
                                   </button>
                                 )}
                               </div>
+                              </PhotoDropZone>
                             ) : (
-                              <div className="flex h-24 flex-col items-center justify-center gap-1 rounded-lg border border-dashed">
-                                {isBusy ? (
-                                  <Loader2 className="size-4 animate-spin text-zinc-400" />
-                                ) : locked ? (
-                                  <span className="text-[10px] text-zinc-400">—</span>
-                                ) : (
-                                  <div className="flex gap-1">
-                                    <button type="button" onClick={() => triggerUpload(rowId, slot, true)} aria-label="Ambil foto" className="flex size-7 items-center justify-center rounded-md bg-primary text-white">
-                                      <Camera className="size-3.5" />
-                                    </button>
-                                    <button type="button" onClick={() => triggerUpload(rowId, slot, false)} aria-label="Upload foto" className="flex size-7 items-center justify-center rounded-md border">
-                                      <Upload className="size-3.5" />
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
+                              <PhotoDropZone
+                                disabled={locked}
+                                onDropFile={(f) => void uploadToSlot(rowId, slot, f)}
+                              >
+                                <div className="flex h-24 flex-col items-center justify-center gap-1 rounded-lg border border-dashed">
+                                  {isBusy ? (
+                                    <Loader2 className="size-4 animate-spin text-zinc-400" />
+                                  ) : locked ? (
+                                    <span className="text-[10px] text-zinc-400">—</span>
+                                  ) : (
+                                    <div className="flex gap-1">
+                                      <button type="button" onClick={() => triggerUpload(rowId, slot, true)} aria-label="Ambil foto" className="flex size-7 items-center justify-center rounded-md bg-primary text-white">
+                                        <Camera className="size-3.5" />
+                                      </button>
+                                      <button type="button" onClick={() => triggerUpload(rowId, slot, false)} aria-label="Upload foto" className="flex size-7 items-center justify-center rounded-md border">
+                                        <Upload className="size-3.5" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </PhotoDropZone>
                             )}
                           </div>
                         );

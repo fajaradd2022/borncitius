@@ -9,6 +9,7 @@ import { burnWatermark, compressOnly, formatTimestamp, getPosition } from "@/lib
 import { enqueue } from "@/lib/offline-queue";
 import { CameraCapture } from "./camera-capture";
 import { AttachmentLightbox, type LightboxItem } from "./ui/attachment-lightbox";
+import { PhotoDropZone } from "./ui/photo-drop-zone";
 import type { FormAttachment } from "./task-form";
 
 /**
@@ -201,19 +202,21 @@ export function PhotoField({
           {busy ? <Loader2 className="size-5 animate-spin" /> : <Camera className="size-5" />}
           Ambil Foto
         </button>
-        <button
-          type="button"
-          disabled={busy || locked}
-          onClick={() => galleryRef.current?.click()}
-          className="flex h-14 items-center justify-center gap-2 rounded-xl border border-border text-sm font-semibold active:bg-muted disabled:opacity-60"
-        >
-          <ImageUp className="size-5" />
-          Dari Galeri
-        </button>
+        <PhotoDropZone disabled={busy || locked} onDropFile={(f) => void handle(f, false)}>
+          <button
+            type="button"
+            disabled={busy || locked}
+            onClick={() => galleryRef.current?.click()}
+            className="flex h-14 w-full items-center justify-center gap-2 rounded-xl border border-border text-sm font-semibold active:bg-muted disabled:opacity-60"
+          >
+            <ImageUp className="size-5" />
+            Dari Galeri
+          </button>
+        </PhotoDropZone>
       </div>
 
       <p className="text-xs text-zinc-400">
-        Foto kamera otomatis diberi watermark waktu, lokasi, dan nama task.
+        Foto kamera otomatis diberi watermark waktu, lokasi, dan nama task. Seret foto ke tombol &quot;Dari Galeri&quot; untuk unggah cepat.
       </p>
 
       <CameraCapture

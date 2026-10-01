@@ -8,9 +8,13 @@ const nextConfig: NextConfig = {
   // Server Action (login) ditolak sebagai potensi CSRF.
   experimental: {
     serverActions: {
-      allowedOrigins: ["born.fajarsodiq.com", "localhost:8080", "localhost:8081"],
+      allowedOrigins: ["born.fajarsodiq.com", "devborn.fajarsodiq.com", "localhost:8080", "localhost:8081", "localhost:3002"],
     },
   },
+  // Dev server (next dev) juga blokir cross-origin request ke resource HMR/
+  // static chunks secara default — perlu daftar host yang sama di sini agar
+  // akses dev lewat domain publik (Cloudflare Tunnel) tidak diblokir.
+  allowedDevOrigins: ["devborn.fajarsodiq.com"],
   /* config options here */
 };
 
