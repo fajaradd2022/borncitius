@@ -4,6 +4,7 @@ import fontkit from '@pdf-lib/fontkit';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { LayoutBlockType } from '@prisma/client';
+import { normalizeJpegOrientation } from './image-orientation';
 
 /** A4 dalam satuan poin PDF (72 dpi). */
 const A4 = { width: 595.28, height: 841.89 };
@@ -1003,7 +1004,17 @@ export class PdfService {
   private async embedImage(doc: PDFDocument, file: { absolutePath: string; mimeType: string }) {
     const bytes = await readFile(file.absolutePath);
     if (file.mimeType === 'image/png') return doc.embedPng(bytes);
-    if (file.mimeType === 'image/jpeg') return doc.embedJpg(bytes);
+    if (file.mimeType === 'image/jpeg') {
+      // Foto dari kamera HP sering disimpan dengan EXIF Orientation (bukan
+      // piksel diputar) — pdf-lib membaca dimensi piksel mentah dan
+      // mengabaikan EXIF sepenuhnya, sehingga foto potrait (EXIF rotate
+      // 90/270) ter-render landscape di PDF. Normalisasi di sini: putar
+      // piksel sesuai EXIF SEKALI di titik pusat ini, dipakai semua
+      // pemanggil embedImage() di seluruh file (grid foto, photo_page,
+      // field image, evidence, dll).
+      const normalized = normalizeJpegOrientation(bytes);
+      return doc.embedJpg(normalized);
+    }
     return null;
   }
 

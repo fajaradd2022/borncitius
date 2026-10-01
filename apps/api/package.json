@@ -30,6 +30,7 @@
     "class-validator": "^0.14.2",
     "docx": "^9.7.1",
     "helmet": "^8.1.0",
+    "jpeg-js": "^0.4.4",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pdf-lib": "^1.17.1",
