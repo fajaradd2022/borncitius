@@ -2,6 +2,15 @@ packages:
   - "apps/*"
   - "packages/*"
 
+# pnpm 11.x menjalankan verifikasi "supply-chain policy" (minimumReleaseAge,
+# dsb) yang mem-fetch metadata SETIAP entry lockfile ke registry npm pada
+# tiap `install --frozen-lockfile`. Di dalam container build, ini sering
+# timeout/hang (lihat pnpm/pnpm#11801, #11860) — build Docker gagal padahal
+# lockfile sendiri tidak berubah. trustLockfile: true melewati verifikasi
+# ulang ini dan mempercayai lockfile yang sudah di-commit (aman karena
+# lockfile tetap divalidasi normal saat `pnpm install` biasa di host/dev).
+trustLockfile: true
+
 allowBuilds:
   '@prisma/client': true
   '@prisma/engines': true
