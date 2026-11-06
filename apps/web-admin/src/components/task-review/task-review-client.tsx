@@ -142,6 +142,11 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
   const [unsavedDirty, setUnsavedDirty] = useState(false);
   const [pendingEditField, setPendingEditField] = useState<ReviewField | null>(null);
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
+  const [savingBeforeSwitch, setSavingBeforeSwitch] = useState(false);
+  // Draft tabel repeat_table terkini, disimpan via ref (bukan state) supaya
+  // tiap ketikan di tabel tidak memicu re-render parent — murni dibaca saat
+  // tombol "Simpan" di dialog unsaved-changes diklik.
+  const draftRowsRef = useRef<{ fieldId: string; rowsJson: string } | null>(null);
   const [exporting, setExporting] = useState<null | "pdf" | "word">(null);
   const [busyFieldId, setBusyFieldId] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<null | "send-back" | "approve-all" | "reopen">(null);
@@ -320,9 +325,33 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
     }
   }
 
+  // Tombol "Simpan" di dialog unsaved-changes: simpan field/tabel yang sedang
+  // diedit dulu, baru lanjut buka field tujuan — 1 klik, bukan 2.
+  async function confirmSaveAndSwitchEdit() {
+    const current = task.fields.find((f) => f.id === editingFieldId);
+    const target = pendingEditField;
+    if (!current || !target) {
+      setUnsavedDialogOpen(false);
+      setPendingEditField(null);
+      return;
+    }
+    setUnsavedDialogOpen(false);
+    setSavingBeforeSwitch(true);
+    const draft = draftRowsRef.current;
+    const ok =
+      current.fieldType === "repeat_table"
+        ? draft?.fieldId === current.id
+          ? await saveRepeatTable(current, draft.rowsJson)
+          : false
+        : await saveDirectEdit(current);
+    setSavingBeforeSwitch(false);
+    setPendingEditField(null);
+    if (ok) openEdit(target);
+  }
+
   // --- Edit tabel Test Call (repeat_table) oleh reviewer ---
   // Simpan isi tabel (JSON baris) via reviewer-edit.
-  async function saveRepeatTable(field: ReviewField, rowsJson: string) {
+  async function saveRepeatTable(field: ReviewField, rowsJson: string): Promise<boolean> {
     setBusyFieldId(field.id);
     try {
       const updated = await apiRequest<{ value: unknown; reviewStatus: ReviewStatus; lastEditedBy: string | null }>(
@@ -336,8 +365,10 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
       });
       closeEdit();
       toast.success(`Tabel "${field.label}" disimpan.`);
+      return true;
     } catch (err) {
       toast.error("Gagal menyimpan tabel.", { description: errorMessage(err) });
+      return false;
     } finally {
       setBusyFieldId(null);
     }
@@ -393,7 +424,7 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
   }
 
 
-  async function saveDirectEdit(field: ReviewField) {
+  async function saveDirectEdit(field: ReviewField): Promise<boolean> {
     // "Revisi langsung oleh reviewer" (PRD 4.4 + ERD REVIEW_LOG.action=edit_field):
     // reviewer mengubah nilai field sendiri, tercatat lastEditedBy/At, status jadi approved.
     setBusyFieldId(field.id);
@@ -414,8 +445,10 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
       });
       closeEdit();
       toast.success(`"${field.label}" direvisi langsung.`);
+      return true;
     } catch (err) {
       toast.error("Gagal menyimpan revisi.", { description: errorMessage(err) });
+      return false;
     } finally {
       setBusyFieldId(null);
     }
@@ -707,7 +740,10 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
                           onUploadPhoto={(rowId, slot, file, multi) => uploadRowPhoto(rowId, slot, file, multi)}
                           onDeletePhoto={(attId) => deleteRowPhoto(attId)}
                           onCancel={() => closeEdit()}
-                          onDirtyChange={(dirty) => setUnsavedDirty(dirty)}
+                          onDraftChange={(dirty, rowsJson) => {
+                            setUnsavedDirty(dirty);
+                            draftRowsRef.current = dirty ? { fieldId: field.id, rowsJson } : null;
+                          }}
                         />
                       ) : isEditing ? (
                         hasAttachments ? (
@@ -1005,11 +1041,17 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
           <DialogFooter className="sm:justify-end">
             <Button
               variant="outline"
-              onClick={() => { setUnsavedDialogOpen(false); setPendingEditField(null); }}
+              disabled={savingBeforeSwitch}
+              onClick={() => void confirmSaveAndSwitchEdit()}
             >
+              {savingBeforeSwitch ? <Loader2 className="size-3.5 animate-spin" /> : null}
               Simpan
             </Button>
-            <Button variant="destructive" onClick={() => confirmDiscardAndSwitchEdit()}>
+            <Button
+              variant="destructive"
+              disabled={savingBeforeSwitch}
+              onClick={() => confirmDiscardAndSwitchEdit()}
+            >
               Lanjut Tanpa Simpan
             </Button>
           </DialogFooter>
@@ -1078,7 +1120,7 @@ interface TableColumnDef {
  * Tampilan read-only tabel test-call untuk reviewer, dengan filter Sector/Cell.
  * Remark dihitung otomatis (Pass/Fail) dari DL Tput vs target scenario.
  */
-function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable = false, busy = false, onSaveRows, onUploadPhoto, onDeletePhoto, onCancel, onDirtyChange }: {
+function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable = false, busy = false, onSaveRows, onUploadPhoto, onDeletePhoto, onCancel, onDraftChange }: {
   field: ReviewField;
   photoAttachments?: ReviewAttachment[];
   onOpenPhoto?: (items: LightboxItem[], startIndex: number) => void;
@@ -1088,7 +1130,7 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable
   onUploadPhoto?: (rowId: string, slot: number, file: File, multi?: boolean) => void;
   onDeletePhoto?: (attId: string) => void;
   onCancel?: () => void;
-  onDirtyChange?: (dirty: boolean) => void;
+  onDraftChange?: (dirty: boolean, rowsJson: string) => void;
 }) {
   const opts = (field.options ?? {}) as {
     columns?: TableColumnDef[];
@@ -1132,8 +1174,9 @@ function TestCallTableView({ field, photoAttachments = [], onOpenPhoto, editable
   // supaya parent bisa warning sebelum user pindah edit ke field lain.
   useEffect(() => {
     if (!editable) return;
-    onDirtyChange?.(JSON.stringify(draft) !== JSON.stringify(rows));
-  }, [draft, rows, editable, onDirtyChange]);
+    const draftJson = JSON.stringify(draft);
+    onDraftChange?.(draftJson !== JSON.stringify(rows), draftJson);
+  }, [draft, rows, editable, onDraftChange]);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const pendingPhoto = useRef<{ rowId: string; slot: number; multi?: boolean } | null>(null);
 
