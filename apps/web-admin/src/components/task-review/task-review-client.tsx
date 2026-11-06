@@ -998,24 +998,19 @@ export function TaskReviewClient({ task: initialTask }: { task: ReviewTask }) {
           if (!open) setPendingEditField(null);
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-w-sm gap-4">
           <DialogHeader>
-            <DialogTitle>Perubahan belum disimpan</DialogTitle>
-            <DialogDescription>
-              Kamu masih punya perubahan yang belum di-<strong>Simpan</strong> pada field/tabel
-              sebelumnya. Kalau lanjut pindah ke field/tabel lain, perubahan tersebut akan hilang.
-              Yakin mau lanjut tanpa menyimpan?
-            </DialogDescription>
+            <DialogTitle>Perubahan sebelumnya belum disimpan</DialogTitle>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="sm:justify-end">
             <Button
               variant="outline"
               onClick={() => { setUnsavedDialogOpen(false); setPendingEditField(null); }}
             >
-              Batal, saya mau simpan dulu
+              Simpan
             </Button>
             <Button variant="destructive" onClick={() => confirmDiscardAndSwitchEdit()}>
-              Lanjut tanpa simpan
+              Lanjut Tanpa Simpan
             </Button>
           </DialogFooter>
         </DialogContent>
