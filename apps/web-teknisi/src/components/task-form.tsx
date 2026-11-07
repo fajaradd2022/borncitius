@@ -9,6 +9,7 @@ import { RepeatTableField, type TableColumn, type RemarkRule, type PhotoSlot, ty
 import { SyncIndicator } from "./sync-indicator";
 import { AttachmentLightbox, type LightboxItem } from "./ui/attachment-lightbox";
 import { drainQueue, enqueue, itemsForTask } from "@/lib/offline-queue";
+import { ApiError, apiFetch, attachmentPath, authedObjectUrl } from "@/lib/api";
 import { getPosition } from "@/lib/watermark";
 
 export interface FormAttachment {
@@ -62,7 +63,8 @@ function parseRows(value: string | null, options: unknown): Record<string, strin
   return Array.isArray(def) ? (def as Record<string, string>[]) : [];
 }
 
-export function TaskForm({ task }: { task: FormTask }) {
+/** onRefresh: ambil ulang data tugas dari server (mis. setelah lampiran berubah). */
+export function TaskForm({ task, onRefresh }: { task: FormTask; onRefresh: () => void }) {
   const router = useRouter();
   // Nama task ditampilkan sebagai baris ke-3 watermark foto (bukan nama
   // teknisi) — sama persis dengan yang dipakai di header halaman ini.
@@ -135,7 +137,7 @@ export function TaskForm({ task }: { task: FormTask }) {
         return;
       }
 
-      const res = await fetch(`/api/proxy/tasks/${task.id}/submit`, { method: "POST" });
+      const res = await apiFetch(`/tasks/${task.id}/submit`, { method: "POST" });
       const body = (await res.json().catch(() => null)) as { message?: string } | null;
 
       if (!res.ok) {
@@ -145,9 +147,10 @@ export function TaskForm({ task }: { task: FormTask }) {
 
       toast.success("Tugas berhasil dikirim.", { description: "Menunggu review admin." });
       router.push("/");
-      router.refresh();
-    } catch {
-      toast.error("Gagal mengirim. Periksa koneksi Anda.");
+    } catch (err) {
+      toast.error("Gagal mengirim.", {
+        description: err instanceof ApiError ? err.message : "Periksa koneksi Anda.",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -191,7 +194,7 @@ export function TaskForm({ task }: { task: FormTask }) {
         id: a.id,
         rowId: typeof meta._tcRowId === "string" ? meta._tcRowId : "",
         slot: Number(meta._tcSlot ?? -1),
-        url: `/api/proxy/tasks/attachments/${a.id}/file`,
+        url: attachmentPath(a.id),
       };
     }),
   );
@@ -202,18 +205,21 @@ export function TaskForm({ task }: { task: FormTask }) {
     form.append("file", file);
     form.append("type", "photo_uploaded");
     form.append("watermark", JSON.stringify({ _tcRowId: rowId, _tcSlot: slot }));
-    const res = await fetch(
-      `/api/proxy/tasks/${task.id}/fields/${docPhotoField.id}/attachments`,
-      { method: "POST", body: form },
-    );
+    const res = await apiFetch(`/tasks/${task.id}/fields/${docPhotoField.id}/attachments`, {
+      method: "POST",
+      body: form,
+    });
     if (!res.ok) throw new Error("upload gagal");
-    router.refresh();
+    onRefresh();
   }
 
   async function deleteRowPhoto(attId: string) {
     if (!docPhotoField) return;
-    await fetch(`/api/proxy/tasks/${task.id}/fields/${docPhotoField.id}/attachments/${attId}`, { method: "DELETE" });
-    router.refresh();
+    const res = await apiFetch(`/tasks/${task.id}/fields/${docPhotoField.id}/attachments/${attId}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error("hapus gagal");
+    onRefresh();
   }
 
   const sections = new Map<string, FormField[]>();
@@ -309,6 +315,7 @@ export function TaskForm({ task }: { task: FormTask }) {
                         taskName={taskName}
                         existingAttachments={field.attachments}
                         locked={locked}
+                        onRefresh={onRefresh}
                       />
                     ) : (
                       <SignedDocField
@@ -317,6 +324,7 @@ export function TaskForm({ task }: { task: FormTask }) {
                         label={field.label + (field.isRequired ? " *" : "")}
                         existingAttachments={field.attachments}
                         locked={locked}
+                        onRefresh={onRefresh}
                       />
                     )
                   ) : (
@@ -391,20 +399,31 @@ export function TaskForm({ task }: { task: FormTask }) {
   );
 }
 
+/** Buka dokumen non-gambar (PDF) di tab baru lewat object URL ber-token. */
+async function openAttachment(attachmentId: string) {
+  try {
+    const url = await authedObjectUrl(attachmentPath(attachmentId));
+    if (!window.open(url, "_blank")) toast.error("Berkas tidak bisa dibuka di perangkat ini.");
+  } catch {
+    toast.error("Gagal memuat berkas.");
+  }
+}
+
 function SignedDocField({
   taskId,
   fieldId,
   label,
   existingAttachments,
   locked,
+  onRefresh,
 }: {
   taskId: string;
   fieldId: string;
   label: string;
   existingAttachments: FormAttachment[];
   locked?: boolean;
+  onRefresh: () => void;
 }) {
-  const router = useRouter();
   const ref = useRef<HTMLInputElement>(null);
   // Preview lokal (object URL) supaya dokumen langsung terlihat begitu
   // diunggah — sama seperti fix di PhotoField, hindari harus refresh-refresh
@@ -422,16 +441,16 @@ function SignedDocField({
   async function handleDelete(att: FormAttachment) {
     if (!window.confirm(`Hapus "${att.originalName}"? Tindakan ini permanen.`)) return;
     try {
-      const res = await fetch(`/api/proxy/tasks/${taskId}/fields/${fieldId}/attachments/${att.id}`, {
+      const res = await apiFetch(`/tasks/${taskId}/fields/${fieldId}/attachments/${att.id}`, {
         method: "DELETE",
       });
-      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      const body = (await res.json().catch(() => null)) as { message?: string } | null;
       if (!res.ok) {
-        toast.error("Gagal menghapus berkas.", { description: body?.error });
+        toast.error("Gagal menghapus berkas.", { description: body?.message });
         return;
       }
       toast.success("Berkas dihapus.");
-      router.refresh();
+      onRefresh();
     } catch {
       toast.error("Tidak bisa menghubungi server.");
     }
@@ -466,7 +485,7 @@ function SignedDocField({
                     setLightbox({
                       items: imageAttachments.map((a) => ({
                         id: a.id,
-                        url: `/api/proxy/tasks/attachments/${a.id}/file`,
+                        url: attachmentPath(a.id),
                         alt: a.originalName,
                       })),
                       startIndex: imageAttachments.findIndex((a) => a.id === att.id),
@@ -477,14 +496,13 @@ function SignedDocField({
                   {att.originalName}
                 </button>
               ) : (
-                <a
-                  href={`/api/proxy/tasks/attachments/${att.id}/file`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="min-w-0 flex-1 truncate underline-offset-2 hover:underline"
+                <button
+                  type="button"
+                  onClick={() => void openAttachment(att.id)}
+                  className="min-w-0 flex-1 truncate text-left underline-offset-2 hover:underline"
                 >
                   {att.originalName}
-                </a>
+                </button>
               )}
               {!locked && (
                 <button

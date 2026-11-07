@@ -1,9 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
+import { useRouter } from "next/navigation";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { loginAction, type LoginState } from "@/lib/api/auth-actions";
+import { hasSession, login } from "@/lib/api";
+
+interface LoginState {
+  error?: string;
+}
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -20,7 +25,24 @@ function SubmitButton() {
 }
 
 export function LoginForm() {
-  const [state, formAction] = useActionState<LoginState, FormData>(loginAction, {});
+  const router = useRouter();
+
+  useEffect(() => {
+    if (hasSession()) router.replace("/");
+  }, [router]);
+
+  const [state, formAction] = useActionState<LoginState, FormData>(async (_prev, formData) => {
+    const email = String(formData.get("email") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
+    if (!email || !password) return { error: "Email dan password wajib diisi." };
+    try {
+      await login(email, password);
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : "Login gagal. Coba lagi." };
+    }
+    router.replace("/");
+    return {};
+  }, {});
 
   return (
     <form action={formAction} className="flex w-full max-w-sm flex-col gap-4">

@@ -1,26 +1,22 @@
 /**
- * Service Worker PWA Teknisi (PRD 5.4).
+ * Service Worker PWA Teknisi (PRD 5.4) — hanya untuk versi web; APK tidak memakainya.
  *
- * Tujuannya membuat aplikasi tetap terbuka saat teknisi berada di lokasi tanpa
- * sinyal. Pengiriman data sendiri sudah ditangani antrian IndexedDB di aplikasi;
- * yang ditangani di sini adalah agar halaman dan asetnya tetap bisa dimuat.
+ * Halaman adalah shell statis (static export); data tugas diambil klien dari
+ * API dan disimpan sendiri di IndexedDB. Jadi SW cukup memastikan shell dan
+ * asetnya bisa dimuat saat offline.
  *
  * Strategi:
  * - Aset statis (_next/static, ikon): cache-first — isinya ber-hash, tidak berubah.
- * - Navigasi halaman: network-first dengan fallback ke halaman offline, supaya
- *   data yang tampil selalu yang terbaru saat ada sinyal.
- * - Permintaan API (/api/*): TIDAK di-cache. Menyajikan data task basi dari
- *   cache lebih berbahaya daripada menampilkan error yang jujur.
+ * - Navigasi halaman: network-first; saat offline pakai shell tersimpan
+ *   (query diabaikan, karena /tugas?id=A dan /tugas?id=B berbagi shell yang sama).
+ * - Permintaan API (/api/*): TIDAK di-cache di sini.
  */
 
-const VERSION = "v4";
+const VERSION = "v5";
 const STATIC_CACHE = `bc-static-${VERSION}`;
 const PAGE_CACHE = `bc-pages-${VERSION}`;
 const OFFLINE_URL = "/offline";
 
-// Daftar tugas ("/") TIDAK di-precache: selalu diambil dari network agar task
-// yang baru dikirim balik reviewer langsung tampil; saat offline jatuh ke
-// halaman offline yang jujur. Hanya aset statis & offline page yang di-precache.
 const PRECACHE = [OFFLINE_URL, "/manifest.json", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -50,8 +46,6 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-
-  // Data task tidak pernah disajikan dari cache — lihat catatan di atas.
   if (url.pathname.startsWith("/api/")) return;
 
   if (url.pathname.startsWith("/_next/static/") || PRECACHE.includes(url.pathname)) {
@@ -69,33 +63,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Halaman daftar tugas ("/") SELALU dari network — jangan simpan HTML-nya ke
-  // cache saat online, agar task yang baru dikirim balik reviewer langsung
-  // tampil. Cache hanya dipakai sebagai fallback offline (disimpan sekali di
-  // install via PRECACHE, tidak ditimpa response terbaru yang mungkin sudah
-  // berubah setelah aksi reviewer).
-  if (url.pathname === "/") {
-    event.respondWith(
-      fetch(request).catch(async () => {
-        const cached = await caches.match(request, { ignoreSearch: true });
-        return cached ?? caches.match(OFFLINE_URL);
-      }),
-    );
-    return;
-  }
-
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(PAGE_CACHE).then((c) => c.put(request, copy));
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(PAGE_CACHE).then((c) => c.put(url.pathname, copy));
+          }
           return res;
         })
-        .catch(async () => {
-          const cached = await caches.match(request);
-          return cached ?? caches.match(OFFLINE_URL);
-        }),
+        .catch(async () => (await caches.match(url.pathname)) ?? caches.match(OFFLINE_URL)),
     );
   }
 });

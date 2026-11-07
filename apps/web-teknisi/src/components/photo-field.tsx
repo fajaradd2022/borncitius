@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { toast } from "sonner";
 import { Camera, Check, ImageUp, Loader2, X } from "lucide-react";
 import { burnWatermark, compressOnly, formatTimestamp, getPosition } from "@/lib/watermark";
 import { enqueue } from "@/lib/offline-queue";
+import { apiFetch, attachmentPath } from "@/lib/api";
+import { AuthImage } from "./auth-image";
 import { CameraCapture } from "./camera-capture";
 import { AttachmentLightbox, type LightboxItem } from "./ui/attachment-lightbox";
 import { PhotoDropZone } from "./ui/photo-drop-zone";
@@ -34,6 +34,7 @@ export function PhotoField({
   taskName,
   existingAttachments,
   locked,
+  onRefresh,
 }: {
   taskId: string;
   fieldId: string;
@@ -41,8 +42,8 @@ export function PhotoField({
   taskName: string;
   existingAttachments: FormAttachment[];
   locked?: boolean;
+  onRefresh: () => void;
 }) {
-  const router = useRouter();
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -103,16 +104,16 @@ export function PhotoField({
   async function handleDelete(att: FormAttachment) {
     if (!window.confirm("Hapus foto ini? Tindakan ini permanen.")) return;
     try {
-      const res = await fetch(`/api/proxy/tasks/${taskId}/fields/${fieldId}/attachments/${att.id}`, {
+      const res = await apiFetch(`/tasks/${taskId}/fields/${fieldId}/attachments/${att.id}`, {
         method: "DELETE",
       });
-      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      const body = (await res.json().catch(() => null)) as { message?: string } | null;
       if (!res.ok) {
-        toast.error("Gagal menghapus foto.", { description: body?.error });
+        toast.error("Gagal menghapus foto.", { description: body?.message });
         return;
       }
       toast.success("Foto dihapus.");
-      router.refresh();
+      onRefresh();
     } catch {
       toast.error("Tidak bisa menghubungi server.");
     }
@@ -142,19 +143,16 @@ export function PhotoField({
                   setLightbox({
                     items: existingAttachments.map((a) => ({
                       id: a.id,
-                      url: `/api/proxy/tasks/attachments/${a.id}/file`,
+                      url: attachmentPath(a.id),
                       alt: a.originalName,
                     })),
                     startIndex: i,
                   })
                 }
               >
-                <Image
-                  src={`/api/proxy/tasks/attachments/${att.id}/file`}
+                <AuthImage
+                  src={attachmentPath(att.id)}
                   alt={att.originalName}
-                  width={80}
-                  height={80}
-                  unoptimized
                   className="size-20 rounded-xl border border-border object-cover"
                 />
               </button>
