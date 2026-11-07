@@ -37,7 +37,6 @@ export function CameraCapture({
     if (!open) return;
 
     let cancelled = false;
-    setReady(false);
 
     async function start() {
       try {
@@ -80,6 +79,7 @@ export function CameraCapture({
       cancelled = true;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
+      setReady(false); // siap untuk pembukaan berikutnya
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);

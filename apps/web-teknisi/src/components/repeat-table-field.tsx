@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { Plus, Trash2, Filter, Camera, Upload, Loader2, X, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { AttachmentLightbox, type LightboxItem } from "./ui/attachment-lightbox";
+import { AuthImage } from "./auth-image";
 import { PhotoDropZone } from "./ui/photo-drop-zone";
 
 export interface TableColumn {
@@ -118,7 +119,10 @@ export function RepeatTableField({
       const cand = `${base}${String.fromCharCode(97 + i)}`;
       if (!existing.has(cand)) return cand;
     }
-    return `${base}_${Date.now().toString(36).slice(-3)}`;
+    for (let n = 2; ; n++) {
+      const cand = `${base}_${n}`;
+      if (!existing.has(cand)) return cand;
+    }
   }
 
   function addRow(scenario: string) {
@@ -328,8 +332,7 @@ export function RepeatTableField({
                                       }}
                                       className="block w-full"
                                     >
-                                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                                      <img src={att.url} alt={ps.label} className="h-20 w-full cursor-zoom-in rounded-lg border object-cover transition active:opacity-80" />
+                                      <AuthImage src={att.url} alt={ps.label} className="h-20 w-full cursor-zoom-in rounded-lg border object-cover transition active:opacity-80" />
                                     </button>
                                     {!locked && (
                                       <button type="button" onClick={() => void onDeletePhoto(att.id)} aria-label="Hapus foto" className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-danger text-white">
@@ -386,8 +389,7 @@ export function RepeatTableField({
                                   }}
                                   className="block w-full"
                                 >
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img src={att.url} alt={ps.label} className="h-24 w-full cursor-zoom-in rounded-lg border object-cover transition active:opacity-80" />
+                                  <AuthImage src={att.url} alt={ps.label} className="h-24 w-full cursor-zoom-in rounded-lg border object-cover transition active:opacity-80" />
                                 </button>
                                 {!locked && (
                                   <button type="button" onClick={() => void onDeletePhoto(att.id)} aria-label="Hapus foto" className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-danger text-white">

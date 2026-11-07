@@ -1,6 +1,10 @@
 "use client";
 
-import Dexie, { type EntityTable } from "dexie";
+import { apiFetch } from "./api";
+import { db, type QueueItem } from "./db";
+
+export { db };
+export type { QueueItem, QueueKind, QueueStatus } from "./db";
 
 /**
  * Antrian offline (PRD 5.4 & 5.5).
@@ -10,42 +14,6 @@ import Dexie, { type EntityTable } from "dexie";
  * koneksi tersedia. Kiriman yang gagal tetap tersimpan dan dicoba lagi, jadi
  * pekerjaan tidak pernah hilang hanya karena jaringan putus.
  */
-
-export type QueueKind = "field-value" | "attachment";
-export type QueueStatus = "pending" | "sending" | "failed";
-
-export interface QueueItem {
-  id?: number;
-  kind: QueueKind;
-  taskId: string;
-  fieldId: string;
-  status: QueueStatus;
-  attempts: number;
-  lastError?: string;
-  createdAt: number;
-
-  /** kind: "field-value" */
-  value?: string;
-
-  /** kind: "attachment" */
-  blob?: Blob;
-  fileName?: string;
-  attachmentType?: "photo_taken" | "photo_uploaded" | "signed_document";
-  watermark?: { timestamp: string; gps: string; taskName: string };
-}
-
-class QueueDb extends Dexie {
-  items!: EntityTable<QueueItem, "id">;
-
-  constructor() {
-    super("born-citius-teknisi");
-    this.version(1).stores({
-      items: "++id, status, taskId, [taskId+fieldId], kind",
-    });
-  }
-}
-
-export const db = new QueueDb();
 
 export async function enqueue(item: Omit<QueueItem, "id" | "status" | "attempts" | "createdAt">) {
   // Untuk isian field, cukup simpan nilai terakhir — tidak perlu menumpuk
@@ -81,7 +49,7 @@ export async function itemsForTask(taskId: string): Promise<QueueItem[]> {
 
 async function send(item: QueueItem): Promise<void> {
   if (item.kind === "field-value") {
-    const res = await fetch(`/api/proxy/tasks/${item.taskId}/fields/${item.fieldId}`, {
+    const res = await apiFetch(`/tasks/${item.taskId}/fields/${item.fieldId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ value: item.value ?? "" }),
@@ -97,7 +65,7 @@ async function send(item: QueueItem): Promise<void> {
   form.append("type", item.attachmentType ?? "photo_taken");
   if (item.watermark) form.append("watermark", JSON.stringify(item.watermark));
 
-  const res = await fetch(`/api/proxy/tasks/${item.taskId}/fields/${item.fieldId}/attachments`, {
+  const res = await apiFetch(`/tasks/${item.taskId}/fields/${item.fieldId}/attachments`, {
     method: "POST",
     body: form,
   });

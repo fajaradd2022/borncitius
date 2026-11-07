@@ -13,19 +13,13 @@ COPY --from=deps /app/apps/web-teknisi/node_modules ./apps/web-teknisi/node_modu
 COPY package.json pnpm-workspace.yaml turbo.json ./
 COPY apps/web-teknisi ./apps/web-teknisi
 WORKDIR /app/apps/web-teknisi
-ENV NEXT_TELEMETRY_DISABLED=1
+# Versi web memanggil API same-origin; nginx meneruskan /api ke container API.
+ARG NEXT_PUBLIC_API_URL=/api
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL NEXT_TELEMETRY_DISABLED=1
 RUN pnpm exec next build
 
-FROM base AS runtime
-ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
-RUN apk add --no-cache tini
-
-# Output standalone: hanya menyalin berkas yang benar-benar dibutuhkan runtime.
-COPY --from=build /app/apps/web-teknisi/.next/standalone ./
-COPY --from=build /app/apps/web-teknisi/.next/static ./apps/web-teknisi/.next/static
-COPY --from=build /app/apps/web-teknisi/public ./apps/web-teknisi/public
-
-USER node
+# Static export cukup disajikan nginx — tidak perlu runtime Node.
+FROM nginx:1.27-alpine AS runtime
+COPY apps/web-teknisi/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/apps/web-teknisi/out /usr/share/nginx/html
 EXPOSE 3000
-ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "apps/web-teknisi/server.js"]

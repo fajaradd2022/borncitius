@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { AuthImage } from "../auth-image";
 
 /**
  * Popup transparan untuk melihat foto lampiran, menggantikan buka-tab-baru.
@@ -14,6 +14,7 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react";
  */
 export interface LightboxItem {
   id: string;
+  /** Path API lampiran, atau URL blob: untuk preview lokal. */
   url: string;
   alt: string;
 }
@@ -29,11 +30,9 @@ export function AttachmentLightbox({
   open: boolean;
   onClose: () => void;
 }) {
+  // Komponen di-mount ulang tiap kali lightbox dibuka, jadi startIndex cukup
+  // dipakai sebagai nilai awal.
   const [index, setIndex] = useState(startIndex);
-
-  useEffect(() => {
-    if (open) setIndex(startIndex);
-  }, [open, startIndex]);
 
   useEffect(() => {
     if (!open) return;
@@ -87,13 +86,10 @@ export function AttachmentLightbox({
 
       {current && (
         <div className="relative max-h-[90vh] max-w-[90vw]">
-          <Image
+          <AuthImage
             src={current.url}
             alt={current.alt}
-            width={1200}
-            height={1200}
-            unoptimized
-            className="max-h-[90vh] w-auto object-contain"
+            className="max-h-[90vh] min-h-40 w-auto min-w-40 object-contain"
           />
           {hasMultiple && (
             <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-xs text-white">

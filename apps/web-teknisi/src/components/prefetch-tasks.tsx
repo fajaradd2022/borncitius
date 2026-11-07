@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
+import { apiGet, taskPath } from "@/lib/api";
 
 /**
- * Menghangatkan cache halaman tugas.
+ * Menyimpan detail tiap tugas ke perangkat lebih awal.
  *
  * Teknisi biasanya membuka aplikasi saat masih ada sinyal (di kantor atau
- * perjalanan), lalu kehilangan koneksi di lokasi. Dengan mengambil halaman
- * detail tiap tugas lebih awal, Service Worker sempat menyimpannya sehingga
- * form tetap bisa dibuka saat offline.
+ * perjalanan), lalu kehilangan koneksi di lokasi. apiGet menyimpan respons ke
+ * IndexedDB, sehingga form tetap bisa dibuka saat offline.
  */
 export function PrefetchTasks({ taskIds }: { taskIds: string[] }) {
   useEffect(() => {
@@ -18,7 +18,7 @@ export function PrefetchTasks({ taskIds }: { taskIds: string[] }) {
     const timer = setTimeout(() => {
       for (const id of taskIds) {
         // Kegagalan diabaikan: ini hanya optimasi, bukan jalur kritis.
-        void fetch(`/tugas/${id}`, { credentials: "same-origin" }).catch(() => undefined);
+        void apiGet(taskPath(id)).catch(() => undefined);
       }
     }, 2500);
 

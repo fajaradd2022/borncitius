@@ -55,7 +55,8 @@ services:
       JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
       JWT_REFRESH_TTL_DAYS: 30
       STORAGE_ROOT: /data/storage
-      CORS_ORIGIN: ${PUBLIC_WEB_URL},${PUBLIC_TEKNISI_URL}
+      # https://localhost = origin aplikasi Android (Capacitor).
+      CORS_ORIGIN: ${PUBLIC_WEB_URL},${PUBLIC_TEKNISI_URL},https://localhost
       GDRIVE_ENABLED: ${GDRIVE_ENABLED:-false}
       GDRIVE_REMOTE: ${GDRIVE_REMOTE:-gdrive}
       GDRIVE_ROOT_FOLDER_ID: ${GDRIVE_ROOT_FOLDER_ID:-}
@@ -104,13 +105,9 @@ services:
       dockerfile: apps/web-teknisi/Dockerfile
     container_name: bc-prod-teknisi
     restart: unless-stopped
+    # Static export disajikan nginx; /api diteruskan ke service api.
     depends_on:
       api: { condition: service_healthy }
-    environment:
-      NODE_ENV: production
-      PORT: 3000
-      HOSTNAME: "0.0.0.0"
-      API_URL: http://api:4000/api
     ports:
       - "${TEKNISI_PORT:-8081}:3000"
     networks: [bc]

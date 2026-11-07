@@ -1,15 +1,14 @@
+"use client";
+
+import { useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronRight, ClipboardList, LogOut, MapPin } from "lucide-react";
-import { apiGet } from "@/lib/api/client";
-import { logoutAction } from "@/lib/api/auth-actions";
+import { logout } from "@/lib/api";
+import { useApiData } from "@/lib/use-api-data";
 import { SyncIndicator } from "@/components/sync-indicator";
 import { PrefetchTasks } from "@/components/prefetch-tasks";
-
-// Daftar tugas harus selalu segar — jangan pakai cache Next (RSC/router cache),
-// karena task yang baru dikirim balik reviewer harus langsung muncul.
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-export const fetchCache = "force-no-store";
+import { PageError, PageLoading } from "@/components/page-state";
 
 interface TaskRow {
   id: string;
@@ -28,33 +27,47 @@ const STATUS_LABEL: Record<TaskRow["status"], { text: string; cls: string }> = {
   approved: { text: "Selesai", cls: "bg-green-100 text-green-700" },
 };
 
-export default async function DaftarTugasPage() {
-  const all = await apiGet<TaskRow[]>("/tasks");
+export default function DaftarTugasPage() {
+  const router = useRouter();
+  // Diambil ulang setiap halaman ini dibuka, jadi task yang baru dikirim balik
+  // reviewer langsung muncul.
+  const { data, error, reload } = useApiData<TaskRow[]>("/tasks");
   // Task yang sudah disubmit/selesai hilang dari daftar teknisi (PRD 5.7).
-  const tasks = all.filter((t) => t.status !== "submitted" && t.status !== "approved");
+  const tasks = useMemo(
+    () => (data ?? []).filter((t) => t.status !== "submitted" && t.status !== "approved"),
+    [data],
+  );
+  const taskIds = useMemo(() => tasks.map((t) => t.id), [tasks]);
+
+  async function handleLogout() {
+    await logout();
+    router.replace("/masuk");
+  }
 
   return (
     <main className="flex min-h-dvh flex-col">
-      <PrefetchTasks taskIds={tasks.map((t) => t.id)} />
+      <PrefetchTasks taskIds={taskIds} />
       <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur">
         <div>
           <h1 className="text-lg font-bold">Tugas Saya</h1>
-          <p className="text-xs text-zinc-500">{tasks.length} tugas aktif</p>
+          <p className="text-xs text-zinc-500">{data ? `${tasks.length} tugas aktif` : "Memuat…"}</p>
         </div>
         <div className="flex items-center gap-2">
           <SyncIndicator />
-          <form action={logoutAction}>
-            <button
-              type="submit"
-              aria-label="Keluar"
-              className="flex size-10 items-center justify-center rounded-lg text-zinc-500 active:bg-muted"
-            >
-              <LogOut className="size-5" />
-            </button>
-          </form>
+          <button
+            type="button"
+            onClick={() => void handleLogout()}
+            aria-label="Keluar"
+            className="flex size-10 items-center justify-center rounded-lg text-zinc-500 active:bg-muted"
+          >
+            <LogOut className="size-5" />
+          </button>
         </div>
       </header>
 
+      {!data ? (
+        error ? <PageError message={error} onRetry={reload} /> : <PageLoading />
+      ) : (
       <div className="flex flex-1 flex-col gap-3 p-4">
         {tasks.map((task) => {
           const badge = STATUS_LABEL[task.status];
@@ -62,7 +75,7 @@ export default async function DaftarTugasPage() {
           return (
             <Link
               key={task.id}
-              href={`/tugas/${task.id}`}
+              href={`/tugas?id=${encodeURIComponent(task.id)}`}
               className="flex items-center gap-3 rounded-2xl border border-border p-4 active:bg-muted"
             >
               <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -99,6 +112,7 @@ export default async function DaftarTugasPage() {
           </div>
         )}
       </div>
+      )}
     </main>
   );
 }
