@@ -22,6 +22,14 @@ const config: CapacitorConfig = {
   appId: "id.borncitius.teknisi",
   appName: "BC Teknisi",
   webDir: "out",
+  android: {
+    // Next.js 16 & Tailwind v4 butuh Chrome 111+. WebView yang lebih lama
+    // diarahkan ke halaman petunjuk update, bukan layar rusak/kosong.
+    minWebViewVersion: 111,
+  },
+  server: {
+    errorPath: "webview-update.html",
+  },
 };
 
 export default config;
