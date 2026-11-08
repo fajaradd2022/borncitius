@@ -8,7 +8,7 @@ requirement, ERD, dan keputusan desain lengkap.
 | Path | Isi |
 |---|---|
 | `apps/web-admin` | Dashboard Admin/SPV (Next.js + Tailwind + shadcn/ui) |
-| `apps/web-teknisi` | PWA teknisi: daftar tugas, isi form, foto ber-watermark, antrian offline |
+| `apps/web-teknisi` | Aplikasi teknisi (PWA + APK Android via Capacitor): daftar tugas, isi form, foto ber-watermark, antrian offline. Lihat [README-nya](./apps/web-teknisi/README.md) |
 | `apps/api` | Backend NestJS + Prisma + PostgreSQL |
 | `services/claude-bridge` | Jembatan HTTP ke Claude CLI di host (fitur AI layout) |
 
@@ -29,7 +29,12 @@ pnpm --filter api db:seed
 # 4. Jalankan
 pnpm --filter api dev              # http://localhost:4000/api
 pnpm --filter web-admin dev        # http://localhost:3002
+pnpm --filter web-teknisi dev      # http://localhost:3003
 ```
+
+Web teknisi memanggil API langsung dari browser. Untuk dev lokal, isi
+`apps/web-teknisi/.env.local` dengan `NEXT_PUBLIC_API_URL=http://localhost:4000/api`
+dan tambahkan `http://localhost:3003` ke `CORS_ORIGIN` di `apps/api/.env`.
 
 Akun seed: `itopscitius@gmail.com` (admin), `dian.spv@borncitius.id` (SPV),
 `rizky@borncitius.id` / `agus@borncitius.id` (teknisi). Password ada di keluaran
@@ -82,7 +87,8 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml exec api \
 | Komponen | Alamat | Catatan |
 |---|---|---|
 | Web Admin | **https://born.fajarsodiq.com** (lokal: `:8080`) | Dashboard Admin/SPV |
-| PWA Teknisi | **https://fse.fajarsodiq.com** (lokal: `:8081`) | Aplikasi lapangan (Add to Home Screen) |
+| PWA Teknisi | **https://fse.fajarsodiq.com** (lokal: `:8081`) | Static export disajikan nginx; `/api/` diteruskan ke `api:4000` |
+| APK Teknisi | — | Memanggil `https://fse.fajarsodiq.com/api`; origin `https://localhost` wajib ada di `CORS_ORIGIN` |
 | API | internal `api:4000` | Sengaja tidak dipublikasikan ke host |
 | PostgreSQL / Redis | internal | Tidak terekspos |
 | Claude Bridge | `127.0.0.1:8787` | systemd user service di host |
@@ -103,9 +109,10 @@ Kedua subdomain perlu WAF rule **Skip** — tanpa itu Cloudflare menantang
 (`cf-mitigated: challenge`) request `fetch()` dari antrian offline PWA dan
 sinkronisasi gagal diam-diam.
 
-Karena Next.js berada di belakang proxy, kedua domain didaftarkan di
+Karena web-admin berada di belakang proxy, domainnya didaftarkan di
 `experimental.serverActions.allowedOrigins`; tanpa itu login (Server Action)
-ditolak sebagai potensi CSRF.
+ditolak sebagai potensi CSRF. Web teknisi tidak memakai Server Action — login
+dan semua request memakai Bearer token langsung ke API.
 
 Secret produksi ada di `.env.prod` (tidak masuk git, permission 600); password
 akun seed ada di `.seed-password.txt`. **Ganti password akun seed setelah login
@@ -121,7 +128,7 @@ journalctl --user -u claude-bridge -f
 ## Alur end-to-end yang sudah berjalan
 
 ```
-Teknisi (PWA :8081)                    Admin (:8080)
+Teknisi (PWA :8081 / APK)              Admin (:8080)
    isi form + foto                        review per field
    ↓ antrian offline (IndexedDB)          ↓ approve / reject / revisi langsung
    ↓ auto-sync saat online                ↓ approve semua
@@ -134,17 +141,13 @@ foto dari galeri tidak diberi watermark (dianggap sudah ber-timestamp).
 
 **Offline**: isian dan foto masuk IndexedDB dulu, terkirim otomatis saat ada
 koneksi. Indikator di header membedakan "menunggu kirim" dan "tersinkron".
-Service Worker menyimpan **daftar tugas** dan aset statis, sehingga aplikasi
-tetap bisa dibuka tanpa sinyal.
-
-> **Batasan yang diketahui — halaman detail tugas belum offline.** Mencache
-> halamannya sempat dicoba dan HTML-nya memang termuat, tetapi chunk JavaScript
-> Next.js tidak ikut tersedia sehingga form tampak normal namun **tidak
-> menyimpan apa pun**. Kegagalan diam-diam seperti itu lebih berbahaya bagi
-> teknisi daripada pesan jujur, jadi caching-nya dikembalikan: membuka detail
-> tugas tanpa sinyal menampilkan halaman "Tidak ada koneksi". Perbaikannya
-> menuntut seluruh chunk JS ikut di-precache dan diverifikasi. Permintaan API sengaja **tidak** di-cache — menyajikan
-data task basi lebih berbahaya daripada menampilkan pesan yang jujur.
+Web teknisi adalah static export: halamannya hanya shell, datanya diambil klien
+dari API. Respons GET terakhir disimpan di IndexedDB dan dipakai **hanya saat
+request gagal karena jaringan**; saat online data selalu diambil segar. Service
+Worker (versi web saja) menyimpan shell halaman dan aset statis yang pernah
+dimuat, sehingga daftar dan detail tugas yang pernah dibuka tetap bisa dibuka
+tanpa sinyal. APK tidak memakai Service Worker karena aset sudah ada di dalam
+paket.
 
 **Output Layout** tersimpan di database: builder menyimpan lewat API, dan
 dokumen PDF dibuat mengikuti layout default template atau override per folder.
